@@ -16,5 +16,14 @@ export function DoctorStatusToggle({ doctorId, userId, isActive }) {
     });
   }
 
-  return <Switch checked={active} disabled={isPending} onCheckedChange={handleChange} />;
+  return (
+    <div className="flex min-h-[44px] min-w-[44px] items-center justify-center">
+      <Switch
+        checked={active}
+        disabled={isPending}
+        onCheckedChange={handleChange}
+        aria-label="Toggle doctor active status"
+      />
+    </div>
+  );
 }

@@ -13,8 +13,8 @@ export default async function EditDoctorPage({ params }) {
   if (!doctor) notFound();
 
   return (
-    <div className="p-6 max-w-2xl">
-      <h1 className="text-2xl font-semibold mb-6">Edit Doctor</h1>
+    <div className="p-4 sm:p-6 max-w-2xl space-y-4 sm:space-y-6">
+      <h1 className="text-xl sm:text-2xl font-semibold">Edit Doctor</h1>
       <DoctorForm
         mode="edit"
         doctorId={doctor.id}

@@ -17,14 +17,16 @@ export function PatientSearchBar({ defaultValue = "" }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2 max-w-md">
+    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2 w-full max-w-md">
       <Input
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Search by name, phone, CNIC, or ID..."
+        className="min-h-[44px] md:min-h-[36px] w-full"
       />
-      <Button type="submit" variant="secondary">
+      <Button type="submit" variant="secondary" className="min-h-[44px] md:min-h-[36px] w-full sm:w-auto px-4 flex items-center justify-center gap-2 shrink-0">
         <Search className="h-4 w-4" />
+        <span className="sm:hidden text-xs">Search</span>
       </Button>
     </form>
   );

@@ -19,10 +19,10 @@ export default async function NewPrescriptionPage({ searchParams }) {
   if (!patient) notFound();
 
   return (
-    <div className="p-6 max-w-3xl space-y-6">
+    <div className="p-4 sm:p-6 max-w-3xl space-y-4 sm:space-y-6 w-full min-w-0">
       <div>
-        <h1 className="text-2xl font-semibold">New Prescription</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl sm:text-2xl font-semibold">New Prescription</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground break-words">
           {patient.fullName} · {patient.patientCode} · Dr. {doctor.fullName}
         </p>
       </div>

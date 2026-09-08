@@ -37,22 +37,22 @@ export function PatientForm({ redirectBase = "/doctor/patients" }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2 col-span-2">
+    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+        <div className="space-y-1.5 col-span-1 md:col-span-2">
           <Label htmlFor="fullName">Full Name</Label>
-          <Input id="fullName" name="fullName" required />
+          <Input id="fullName" name="fullName" required className="min-h-[44px] md:min-h-[36px]" />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="fatherHusbandName">Father / Husband Name</Label>
-          <Input id="fatherHusbandName" name="fatherHusbandName" />
+          <Input id="fatherHusbandName" name="fatherHusbandName" className="min-h-[44px] md:min-h-[36px]" />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="gender">Gender</Label>
           <Select name="gender" required>
-            <SelectTrigger id="gender">
+            <SelectTrigger id="gender" className="w-full min-h-[44px] md:min-h-[36px]">
               <SelectValue placeholder="Select gender" />
             </SelectTrigger>
             <SelectContent>
@@ -63,62 +63,62 @@ export function PatientForm({ redirectBase = "/doctor/patients" }) {
           </Select>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="dateOfBirth">Date of Birth</Label>
-          <Input id="dateOfBirth" name="dateOfBirth" type="date" />
+          <Input id="dateOfBirth" name="dateOfBirth" type="date" className="min-h-[44px] md:min-h-[36px]" />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="age">Age</Label>
-          <Input id="age" name="age" type="number" min="0" />
+          <Input id="age" name="age" type="number" min="0" className="min-h-[44px] md:min-h-[36px]" />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="phone">Phone Number</Label>
-          <Input id="phone" name="phone" required />
+          <Input id="phone" name="phone" required className="min-h-[44px] md:min-h-[36px]" />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" name="email" type="email" />
+          <Input id="email" name="email" type="email" className="min-h-[44px] md:min-h-[36px]" />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="cnic">CNIC</Label>
-          <Input id="cnic" name="cnic" />
+          <Input id="cnic" name="cnic" className="min-h-[44px] md:min-h-[36px]" />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="bloodGroup">Blood Group</Label>
-          <Input id="bloodGroup" name="bloodGroup" placeholder="O+" />
+          <Input id="bloodGroup" name="bloodGroup" placeholder="O+" className="min-h-[44px] md:min-h-[36px]" />
         </div>
 
-        <div className="space-y-2 col-span-2">
+        <div className="space-y-1.5 col-span-1 md:col-span-2">
           <Label htmlFor="address">Address</Label>
-          <Input id="address" name="address" />
+          <Input id="address" name="address" className="min-h-[44px] md:min-h-[36px]" />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="emergencyContact">Emergency Contact</Label>
-          <Input id="emergencyContact" name="emergencyContact" />
+          <Input id="emergencyContact" name="emergencyContact" className="min-h-[44px] md:min-h-[36px]" />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="heightCm">Height (cm)</Label>
-          <Input id="heightCm" name="heightCm" type="number" step="0.1" />
+          <Input id="heightCm" name="heightCm" type="number" step="0.1" className="min-h-[44px] md:min-h-[36px]" />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="weightKg">Weight (kg)</Label>
-          <Input id="weightKg" name="weightKg" type="number" step="0.1" />
+          <Input id="weightKg" name="weightKg" type="number" step="0.1" className="min-h-[44px] md:min-h-[36px]" />
         </div>
 
-        <div className="space-y-2 col-span-2">
+        <div className="space-y-1.5 col-span-1 md:col-span-2">
           <Label htmlFor="allergies">Allergies</Label>
           <Textarea id="allergies" name="allergies" rows={2} />
         </div>
 
-        <div className="space-y-2 col-span-2">
+        <div className="space-y-1.5 col-span-1 md:col-span-2">
           <Label htmlFor="existingDiseases">Existing Diseases</Label>
           <Textarea id="existingDiseases" name="existingDiseases" rows={2} />
         </div>
@@ -135,7 +135,7 @@ export function PatientForm({ redirectBase = "/doctor/patients" }) {
         </div>
       )}
 
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" disabled={loading} className="w-full sm:w-auto min-h-[44px]">
         {loading ? "Registering..." : "Register Patient"}
       </Button>
     </form>

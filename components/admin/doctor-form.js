@@ -80,7 +80,7 @@ export function DoctorForm({ mode = "create", doctorId, initialValues = {}, emai
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" disabled={loading} className="w-full sm:w-auto min-h-[44px]">
         {loading ? "Saving..." : mode === "edit" ? "Save Changes" : "Create Doctor"}
       </Button>
     </form>

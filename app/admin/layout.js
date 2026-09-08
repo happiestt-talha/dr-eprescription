@@ -9,9 +9,9 @@ export default async function AdminLayout({ children }) {
   if (session.user.role !== "admin") redirect("/login");
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col lg:flex-row w-full overflow-x-hidden">
       <AdminSidebar />
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 min-w-0 w-full overflow-x-hidden">{children}</main>
     </div>
   );
 }
