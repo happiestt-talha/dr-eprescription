@@ -22,6 +22,21 @@ function pickMultiple(arr, count) {
 }
 
 async function main() {
+  console.log("Cleaning existing records for fresh seed...");
+  await prisma.prescriptionMedicine.deleteMany();
+  await prisma.prescriptionLabTest.deleteMany();
+  await prisma.vitals.deleteMany();
+  await prisma.prescription.deleteMany();
+  await prisma.appointment.deleteMany();
+  await prisma.auditLog.deleteMany();
+  await prisma.report.deleteMany();
+  await prisma.patient.deleteMany();
+  await prisma.doctor.deleteMany();
+  await prisma.receptionist.deleteMany();
+  await prisma.medicine.deleteMany();
+  await prisma.labTest.deleteMany();
+  await prisma.user.deleteMany();
+
   console.log("Seeding database with Pakistani demographic dummy data...");
 
   // ============================================================
@@ -123,6 +138,16 @@ async function main() {
     create: {
       email: "admin@drclinic.pk",
       passwordHash: hash("Admin@123"),
+      role: "admin",
+      isActive: true,
+    },
+  });
+  await prisma.user.upsert({
+    where: { email: "admin@clinic.com" },
+    update: {},
+    create: {
+      email: "admin@clinic.com",
+      passwordHash: hash("admin123"),
       role: "admin",
       isActive: true,
     },

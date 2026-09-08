@@ -8,7 +8,7 @@ export default async function DoctorLayout({ children }) {
     redirect("/login");
   }
 
-  if (session.user.role !== "DOCTOR") {
+  if (session.user.role?.toLowerCase() !== "doctor") {
     redirect("/login");
   }
 
