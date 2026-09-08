@@ -1,0 +1,250 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  admin
+  doctor
+  patient
+  receptionist
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum PrescriptionStatus {
+  draft
+  finalized
+}
+
+enum AppointmentStatus {
+  pending
+  confirmed
+  completed
+  cancelled
+}
+
+enum ReportFormat {
+  pdf
+  csv
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  doctor        Doctor?
+  receptionist  Receptionist?
+  patient       Patient?
+  auditLogs     AuditLog[]
+  reports       Report[]
+  bookedAppointments Appointment[]
+
+  @@map("users")
+}
+
+model Doctor {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id])
+  fullName         String
+  qualification    String
+  specialization   String
+  registrationNo   String   @unique
+  phone            String
+  clinicName       String
+  clinicAddress    String
+  profilePictureUrl String?
+  signatureUrl     String?
+  createdAt        DateTime @default(now())
+
+  prescriptions Prescription[]
+  appointments  Appointment[]
+
+  @@map("doctors")
+}
+
+model Receptionist {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  fullName  String
+  phone     String
+  clinicName String
+  createdAt DateTime @default(now())
+
+  @@map("receptionists")
+}
+
+model Patient {
+  id                 String    @id @default(uuid())
+  userId             String?   @unique
+  user               User?     @relation(fields: [userId], references: [id])
+  patientCode        String    @unique
+  fullName           String
+  fatherHusbandName  String?
+  gender             Gender
+  dateOfBirth        DateTime?
+  age                Int?
+  phone              String    @unique
+  email              String?
+  cnic               String?   @unique
+  address            String?
+  bloodGroup         String?
+  emergencyContact   String?
+  allergies          String?
+  existingDiseases   String?
+  heightCm           Decimal?
+  weightKg           Decimal?
+  createdAt          DateTime  @default(now())
+
+  prescriptions Prescription[]
+  appointments  Appointment[]
+
+  @@index([fullName])
+  @@index([phone])
+  @@index([cnic])
+  @@map("patients")
+}
+
+model Vitals {
+  id             String       @id @default(uuid())
+  prescriptionId String       @unique
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
+  heightCm       Decimal?
+  weightKg       Decimal?
+  bloodPressure  String?
+  temperatureF   Decimal?
+  pulseRate      Int?
+  spo2           Decimal?
+
+  @@map("vitals")
+}
+
+model Prescription {
+  id                String              @id @default(uuid())
+  prescriptionCode  String              @unique
+  patientId         String
+  patient           Patient             @relation(fields: [patientId], references: [id])
+  doctorId          String
+  doctor            Doctor              @relation(fields: [doctorId], references: [id])
+  visitDate         DateTime            @default(now())
+  symptoms          String?
+  diagnosis         String?
+  advice            String?
+  qrCodeUrl         String?
+  pdfUrl            String?
+  status            PrescriptionStatus  @default(draft)
+  createdAt         DateTime            @default(now())
+
+  vitals             Vitals?
+  medicines          PrescriptionMedicine[]
+  labTests           PrescriptionLabTest[]
+
+  @@map("prescriptions")
+}
+
+model Medicine {
+  id           String   @id @default(uuid())
+  name         String
+  genericName  String?
+  dosageForm   String?
+  strength     String?
+  manufacturer String?
+  createdAt    DateTime @default(now())
+
+  prescriptions PrescriptionMedicine[]
+
+  @@map("medicines")
+}
+
+model PrescriptionMedicine {
+  id             String       @id @default(uuid())
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
+  medicineId     String
+  medicine       Medicine     @relation(fields: [medicineId], references: [id])
+  dosage         String
+  frequency      String
+  duration       String
+  instructions   String?
+
+  @@map("prescription_medicines")
+}
+
+model LabTest {
+  id           String   @id @default(uuid())
+  name         String
+  category     String?
+  normalRange  String?
+
+  prescriptions PrescriptionLabTest[]
+
+  @@map("lab_tests")
+}
+
+model PrescriptionLabTest {
+  id             String       @id @default(uuid())
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
+  labTestId      String
+  labTest        LabTest      @relation(fields: [labTestId], references: [id])
+  instructions   String?
+
+  @@map("prescription_lab_tests")
+}
+
+model Appointment {
+  id          String            @id @default(uuid())
+  patientId   String
+  patient     Patient           @relation(fields: [patientId], references: [id])
+  doctorId    String
+  doctor      Doctor            @relation(fields: [doctorId], references: [id])
+  scheduledAt DateTime
+  status      AppointmentStatus @default(pending)
+  bookedBy    String?
+  bookedByUser User?            @relation(fields: [bookedBy], references: [id])
+  createdAt   DateTime          @default(now())
+
+  @@map("appointments")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model Report {
+  id           String       @id @default(uuid())
+  reportType   String
+  format       ReportFormat
+  filters      Json?
+  fileUrl      String
+  generatedBy  String
+  generatedByUser User      @relation(fields: [generatedBy], references: [id])
+  generatedAt  DateTime     @default(now())
+
+  @@map("reports")
+}
