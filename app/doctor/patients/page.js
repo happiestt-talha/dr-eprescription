@@ -69,7 +69,7 @@ export default async function DoctorPatientsPage({ searchParams }) {
             {patients.length === 0 && (
               <TableRow>
                 <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                  No patients found for "{q}". Try a different search, or register them as new.
+                  No patients found for &quote;{q}&quote;. Try a different search, or register them as new.
                 </TableCell>
               </TableRow>
             )}
