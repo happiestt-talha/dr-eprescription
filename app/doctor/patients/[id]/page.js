@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Plus } from "lucide-react";
+import { Plus, Pencil } from "lucide-react";
 
 export default async function PatientProfilePage({ params }) {
   const { id } = await params;
@@ -40,12 +40,20 @@ export default async function PatientProfilePage({ params }) {
           <h1 className="text-xl sm:text-2xl font-semibold">{patient.fullName}</h1>
           <p className="text-xs sm:text-sm text-muted-foreground">{patient.patientCode}</p>
         </div>
-        <Link href={`/doctor/prescriptions/new?patientId=${patient.id}`} className="w-full sm:w-auto">
-          <Button className="w-full sm:w-auto min-h-[44px]">
-            <Plus className="mr-2 h-4 w-4" />
-            New Prescription
-          </Button>
-        </Link>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+          <Link href={`/doctor/patients/${patient.id}/edit`} className="w-full sm:w-auto">
+            <Button variant="outline" className="w-full sm:w-auto min-h-[44px]">
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          </Link>
+          <Link href={`/doctor/prescriptions/new?patientId=${patient.id}`} className="w-full sm:w-auto">
+            <Button className="w-full sm:w-auto min-h-[44px]">
+              <Plus className="mr-2 h-4 w-4" />
+              New Prescription
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Card>
@@ -94,9 +102,12 @@ export default async function PatientProfilePage({ params }) {
 
               {/* Row-level action at bottom of card with min 44x44px touch target */}
               <div className="pt-2 border-t">
-                <Link href={`/doctor/prescriptions/${rx.id}`} className="block">
+                <Link
+                  href={rx.status === "draft" ? `/doctor/prescriptions/${rx.id}/edit` : `/doctor/prescriptions/${rx.id}`}
+                  className="block"
+                >
                   <Button variant="outline" size="sm" className="w-full min-h-[44px] justify-center text-xs font-medium">
-                    View Prescription
+                    {rx.status === "draft" ? "Edit Draft" : "View Prescription"}
                   </Button>
                 </Link>
               </div>
@@ -124,7 +135,10 @@ export default async function PatientProfilePage({ params }) {
               {patient.prescriptions.map((rx) => (
                 <TableRow key={rx.id} className="cursor-pointer">
                   <TableCell>
-                    <Link href={`/doctor/prescriptions/${rx.id}`} className="hover:underline font-medium">
+                    <Link
+                      href={rx.status === "draft" ? `/doctor/prescriptions/${rx.id}/edit` : `/doctor/prescriptions/${rx.id}`}
+                      className="hover:underline font-medium"
+                    >
                       {rx.visitDate.toLocaleDateString()}
                     </Link>
                   </TableCell>

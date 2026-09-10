@@ -3,12 +3,12 @@ import { NextResponse } from "next/server";
 
 const roleHome = {
   admin: "/admin/dashboard",
-  doctor: "/doctor/patients",
-  patient: "/patient",
-  receptionist: "/receptionist",
+  doctor: "/doctor/dashboard",
+  patient: "/patient/prescriptions",
+  receptionist: "/receptionist/appointments",
 };
 
-const rolePrefix = {
+const roleRootPrefix = {
   admin: "/admin",
   doctor: "/doctor",
   patient: "/patient",
@@ -19,12 +19,15 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
 
-  if (pathname.startsWith("/api/auth")) {
-    return NextResponse.next();
-  }
-
+  const isApiRoute = pathname.startsWith("/api/");
   const isAuthPage = pathname.startsWith("/login");
   const isPublicPage = pathname === "/" || pathname.startsWith("/verify");
+
+  if (isApiRoute) {
+    // API routes check auth/authorization themselves; a redirect here
+    // would turn a PDF download into a broken login-page response.
+    return NextResponse.next();
+  }
 
   if (isPublicPage || isAuthPage) {
     if (session && isAuthPage) {
@@ -37,14 +40,14 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  const allowedPrefix = rolePrefix[session.user.role];
+  const allowedPrefix = roleRootPrefix[session.user.role];
   if (allowedPrefix && !pathname.startsWith(allowedPrefix)) {
-    return NextResponse.redirect(new URL(roleHome[session.user.role] ?? "/login", req.url));
+    return NextResponse.redirect(new URL(roleHome[session.user.role], req.url));
   }
 
   return NextResponse.next();
 });
 
 export const config = {
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|api/verify).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

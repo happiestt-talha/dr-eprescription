@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Stethoscope, Pill, FlaskConical, LogOut, Menu } from "lucide-react";
+import { LayoutDashboard, Stethoscope, Pill, FlaskConical, LogOut, Menu, FileBarChart, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -19,7 +19,9 @@ const links = [
   { href: "/admin/doctors", label: "Doctors", icon: Stethoscope },
   { href: "/admin/medicines", label: "Medicines", icon: Pill },
   { href: "/admin/lab-tests", label: "Lab Tests", icon: FlaskConical },
-];
+  { href: "/admin/reports", label: "Reports", icon: FileBarChart },
+  { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
+];  
 
 function NavContent({ pathname, onLinkClick }) {
   return (

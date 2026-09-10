@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createPrescription } from "@/lib/actions/prescriptions";
+import { createPrescription, updatePrescription } from "@/lib/actions/prescriptions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,13 +14,30 @@ import { Plus, Trash2 } from "lucide-react";
 let rowId = 0;
 const nextId = () => `row-${++rowId}`;
 
-export function PrescriptionForm({ patient, medicines, labTests }) {
+export function PrescriptionForm({ patient, medicines, labTests, mode = "create", prescriptionId, initialData }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [medicineRows, setMedicineRows] = useState([]);
-  const [labTestRows, setLabTestRows] = useState([]);
+  const [medicineRows, setMedicineRows] = useState(
+    () =>
+      initialData?.medicines?.map((pm) => ({
+        id: nextId(),
+        medicineId: pm.medicineId,
+        dosage: pm.dosage,
+        frequency: pm.frequency,
+        duration: pm.duration,
+        instructions: pm.instructions || "",
+      })) || []
+  );
+  const [labTestRows, setLabTestRows] = useState(
+    () =>
+      initialData?.labTests?.map((plt) => ({
+        id: nextId(),
+        labTestId: plt.labTestId,
+        instructions: plt.instructions || "",
+      })) || []
+  );
 
   function addMedicineRow() {
     setMedicineRows((rows) => [
@@ -55,7 +72,11 @@ export function PrescriptionForm({ patient, medicines, labTests }) {
     formData.set("medicinesData", JSON.stringify(medicineRows));
     formData.set("labTestsData", JSON.stringify(labTestRows));
 
-    const res = await createPrescription(formData);
+    const res =
+      mode === "edit"
+        ? await updatePrescription(prescriptionId, formData)
+        : await createPrescription(formData);
+
     setLoading(false);
 
     if (res?.error) {
@@ -66,6 +87,8 @@ export function PrescriptionForm({ patient, medicines, labTests }) {
     router.push(`/doctor/prescriptions/${res.prescriptionId}`);
   }
 
+  const v = initialData?.vitals;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <Card>
@@ -73,27 +96,27 @@ export function PrescriptionForm({ patient, medicines, labTests }) {
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
           <div className="space-y-1.5">
             <Label htmlFor="heightCm">Height (cm)</Label>
-            <Input id="heightCm" name="heightCm" type="number" step="0.1" />
+            <Input id="heightCm" name="heightCm" type="number" step="0.1" defaultValue={v?.heightCm ?? ""} className="min-h-[44px] md:min-h-[36px]" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="weightKg">Weight (kg)</Label>
-            <Input id="weightKg" name="weightKg" type="number" step="0.1" />
+            <Input id="weightKg" name="weightKg" type="number" step="0.1" defaultValue={v?.weightKg ?? ""} className="min-h-[44px] md:min-h-[36px]" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="bloodPressure">Blood Pressure</Label>
-            <Input id="bloodPressure" name="bloodPressure" placeholder="120/80" />
+            <Input id="bloodPressure" name="bloodPressure" placeholder="120/80" defaultValue={v?.bloodPressure ?? ""} className="min-h-[44px] md:min-h-[36px]" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="temperatureF">Temperature (°F)</Label>
-            <Input id="temperatureF" name="temperatureF" type="number" step="0.1" />
+            <Input id="temperatureF" name="temperatureF" type="number" step="0.1" defaultValue={v?.temperatureF ?? ""} className="min-h-[44px] md:min-h-[36px]" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pulseRate">Pulse Rate</Label>
-            <Input id="pulseRate" name="pulseRate" type="number" />
+            <Input id="pulseRate" name="pulseRate" type="number" defaultValue={v?.pulseRate ?? ""} className="min-h-[44px] md:min-h-[36px]" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="spo2">SpO2 (%)</Label>
-            <Input id="spo2" name="spo2" type="number" step="0.1" />
+            <Input id="spo2" name="spo2" type="number" step="0.1" defaultValue={v?.spo2 ?? ""} className="min-h-[44px] md:min-h-[36px]" />
           </div>
         </CardContent>
       </Card>
@@ -103,11 +126,11 @@ export function PrescriptionForm({ patient, medicines, labTests }) {
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="symptoms">Symptoms</Label>
-            <Textarea id="symptoms" name="symptoms" rows={3} />
+            <Textarea id="symptoms" name="symptoms" rows={3} defaultValue={initialData?.symptoms ?? ""} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="diagnosis">Diagnosis</Label>
-            <Textarea id="diagnosis" name="diagnosis" rows={2} />
+            <Textarea id="diagnosis" name="diagnosis" rows={2} defaultValue={initialData?.diagnosis ?? ""} />
           </div>
         </CardContent>
       </Card>
@@ -127,10 +150,7 @@ export function PrescriptionForm({ patient, medicines, labTests }) {
             >
               <div className="md:col-span-4 space-y-1.5">
                 <Label className="text-xs">Medicine</Label>
-                <Select
-                  value={row.medicineId}
-                  onValueChange={(v) => updateMedicineRow(row.id, "medicineId", v)}
-                >
+                <Select value={row.medicineId} onValueChange={(v) => updateMedicineRow(row.id, "medicineId", v)}>
                   <SelectTrigger className="w-full min-h-[44px] md:min-h-[36px]">
                     <SelectValue placeholder="Select medicine" />
                   </SelectTrigger>
@@ -143,7 +163,6 @@ export function PrescriptionForm({ patient, medicines, labTests }) {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:contents">
                 <div className="md:col-span-2 space-y-1.5">
                   <Label className="text-xs">Dosage</Label>
@@ -173,7 +192,6 @@ export function PrescriptionForm({ patient, medicines, labTests }) {
                   />
                 </div>
               </div>
-
               <div className="md:col-span-1 space-y-1.5">
                 <Label className="text-xs">Notes</Label>
                 <Input
@@ -183,7 +201,6 @@ export function PrescriptionForm({ patient, medicines, labTests }) {
                   className="min-h-[44px] md:min-h-[36px]"
                 />
               </div>
-
               <div className="md:col-span-1 pt-1 md:pt-0">
                 <Button
                   type="button"
@@ -198,9 +215,7 @@ export function PrescriptionForm({ patient, medicines, labTests }) {
               </div>
             </div>
           ))}
-          {medicineRows.length === 0 && (
-            <p className="text-sm text-muted-foreground">No medicines added yet.</p>
-          )}
+          {medicineRows.length === 0 && <p className="text-sm text-muted-foreground">No medicines added yet.</p>}
         </CardContent>
       </Card>
 
@@ -219,10 +234,7 @@ export function PrescriptionForm({ patient, medicines, labTests }) {
             >
               <div className="md:col-span-6 space-y-1.5">
                 <Label className="text-xs">Test</Label>
-                <Select
-                  value={row.labTestId}
-                  onValueChange={(v) => updateLabTestRow(row.id, "labTestId", v)}
-                >
+                <Select value={row.labTestId} onValueChange={(v) => updateLabTestRow(row.id, "labTestId", v)}>
                   <SelectTrigger className="w-full min-h-[44px] md:min-h-[36px]">
                     <SelectValue placeholder="Select test" />
                   </SelectTrigger>
@@ -256,16 +268,14 @@ export function PrescriptionForm({ patient, medicines, labTests }) {
               </div>
             </div>
           ))}
-          {labTestRows.length === 0 && (
-            <p className="text-sm text-muted-foreground">No lab tests added yet.</p>
-          )}
+          {labTestRows.length === 0 && <p className="text-sm text-muted-foreground">No lab tests added yet.</p>}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader><CardTitle className="text-base">Doctor&apos;s Advice</CardTitle></CardHeader>
         <CardContent>
-          <Textarea name="advice" rows={3} placeholder="Rest, hydration, follow-up in 5 days..." />
+          <Textarea name="advice" rows={3} placeholder="Rest, hydration, follow-up in 5 days..." defaultValue={initialData?.advice ?? ""} />
         </CardContent>
       </Card>
 

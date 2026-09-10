@@ -1,7 +1,9 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Card, CardContent } from "@/components/ui/card";
 import { PrintButton } from "@/components/prescriptions/print-button";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 
 export default async function PrescriptionViewPage({ params }) {
   const { id } = await params;
@@ -18,6 +20,7 @@ export default async function PrescriptionViewPage({ params }) {
   });
 
   if (!rx) notFound();
+  if (rx.status === "draft") redirect(`/doctor/prescriptions/${id}/edit`);
 
   return (
     <div className="p-4 sm:p-6 max-w-3xl space-y-4 sm:space-y-6 w-full min-w-0">
@@ -28,6 +31,29 @@ export default async function PrescriptionViewPage({ params }) {
         </div>
         <PrintButton className="w-full sm:w-auto min-h-[44px]" />
       </div>
+
+      {rx.status === "finalized" && (
+        <Card>
+          <CardContent className="p-4 sm:p-6 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left">
+            <img
+              src={`/api/prescriptions/${rx.id}/qr`}
+              alt="Verification QR code"
+              className="h-32 w-32 border rounded shrink-0 bg-white"
+            />
+            <div className="space-y-3 w-full sm:w-auto">
+              <p className="text-sm text-muted-foreground">
+                Scan to verify this prescription, or download it as a PDF.
+              </p>
+              <a href={`/api/prescriptions/${rx.id}/pdf`} target="_blank" rel="noopener noreferrer" className="inline-block w-full sm:w-auto">
+                <Button className="w-full sm:w-auto min-h-[44px]">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </Button>
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="pt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm">

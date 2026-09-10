@@ -1,21 +1,16 @@
-import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { DoctorSidebar } from "@/components/doctor/doctor-sidebar";
 
 export default async function DoctorLayout({ children }) {
   const session = await auth();
 
-  if (!session?.user) {
-    redirect("/login");
-  }
-
-  if (session.user.role?.toLowerCase() !== "doctor") {
-    redirect("/login");
-  }
+  if (!session) redirect("/login");
+  if (session.user.role !== "doctor") redirect("/login");
 
   return (
-    <div className="flex min-h-screen flex-col lg:flex-row w-full overflow-x-hidden">
-      <DoctorSidebar user={session.user} />
+    <div className="flex min-h-screen flex-col md:flex-row w-full overflow-x-hidden">
+      <DoctorSidebar />
       <main className="flex-1 min-w-0 w-full overflow-x-hidden">{children}</main>
     </div>
   );

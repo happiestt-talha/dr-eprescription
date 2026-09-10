@@ -3,9 +3,9 @@ import { auth } from "@/auth";
 
 const roleHome = {
   admin: "/admin/dashboard",
-  doctor: "/doctor/patients",
-  patient: "/patient",
-  receptionist: "/receptionist",
+  doctor: "/doctor/dashboard",
+  patient: "/patient/prescriptions",
+  receptionist: "/receptionist/appointments",
 };
 
 export default async function Home() {

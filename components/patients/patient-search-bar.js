@@ -6,14 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 
-export function PatientSearchBar({ defaultValue = "" }) {
+export function PatientSearchBar({ defaultValue = "", basePath = "/doctor/patients" }) {
   const router = useRouter();
   const [value, setValue] = useState(defaultValue);
 
   function handleSubmit(e) {
     e.preventDefault();
     const params = value.trim() ? `?q=${encodeURIComponent(value.trim())}` : "";
-    router.push(`/doctor/patients${params}`);
+    router.push(`${basePath}${params}`);
   }
 
   return (
