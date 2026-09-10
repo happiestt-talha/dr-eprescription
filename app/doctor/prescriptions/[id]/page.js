@@ -72,11 +72,11 @@ export default async function PrescriptionViewPage({ params }) {
         <Card>
           <CardContent className="pt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 sm:gap-4 text-sm">
             {rx.vitals.bloodPressure && <div><p className="text-xs text-muted-foreground uppercase">BP</p><p className="font-medium">{rx.vitals.bloodPressure}</p></div>}
-            {rx.vitals.temperatureF && <div><p className="text-xs text-muted-foreground uppercase">Temp</p><p className="font-medium">{rx.vitals.temperatureF}°F</p></div>}
+            {rx.vitals.temperatureF && <div><p className="text-xs text-muted-foreground uppercase">Temp</p><p className="font-medium">{rx.vitals.temperatureF.toString()}°F</p></div>}
             {rx.vitals.pulseRate && <div><p className="text-xs text-muted-foreground uppercase">Pulse</p><p className="font-medium">{rx.vitals.pulseRate}</p></div>}
-            {rx.vitals.spo2 && <div><p className="text-xs text-muted-foreground uppercase">SpO2</p><p className="font-medium">{rx.vitals.spo2}%</p></div>}
-            {rx.vitals.heightCm && <div><p className="text-xs text-muted-foreground uppercase">Height</p><p className="font-medium">{rx.vitals.heightCm} cm</p></div>}
-            {rx.vitals.weightKg && <div><p className="text-xs text-muted-foreground uppercase">Weight</p><p className="font-medium">{rx.vitals.weightKg} kg</p></div>}
+            {rx.vitals.spo2 && <div><p className="text-xs text-muted-foreground uppercase">SpO2</p><p className="font-medium">{rx.vitals.spo2.toString()}%</p></div>}
+            {rx.vitals.heightCm && <div><p className="text-xs text-muted-foreground uppercase">Height</p><p className="font-medium">{rx.vitals.heightCm.toString()} cm</p></div>}
+            {rx.vitals.weightKg && <div><p className="text-xs text-muted-foreground uppercase">Weight</p><p className="font-medium">{rx.vitals.weightKg.toString()} kg</p></div>}
           </CardContent>
         </Card>
       )}

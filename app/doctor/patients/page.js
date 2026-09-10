@@ -24,57 +24,59 @@ export default async function DoctorPatientsPage({ searchParams }) {
     : [];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Patients</h1>
-        <Link href="/doctor/patients/new">
-          <Button>
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-semibold">Patients</h1>
+        <Link href="/doctor/patients/new" className="w-full sm:w-auto">
+          <Button className="w-full sm:w-auto min-h-[44px]">
             <Plus className="mr-2 h-4 w-4" />
             Register New Patient
           </Button>
         </Link>
       </div>
 
-      <PatientSearchBar defaultValue={q || ""} />
+      <PatientSearchBar defaultValue={q || ""} basePath="/doctor/patients" />
 
       {q && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Patient ID</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Gender</TableHead>
-              <TableHead>Age</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {patients.map((patient) => (
-              <TableRow key={patient.id} className="cursor-pointer">
-                <TableCell>
-                  <Link href={`/doctor/patients/${patient.id}`} className="block">
-                    {patient.patientCode}
-                  </Link>
-                </TableCell>
-                <TableCell className="font-medium">
-                  <Link href={`/doctor/patients/${patient.id}`} className="block">
-                    {patient.fullName}
-                  </Link>
-                </TableCell>
-                <TableCell>{patient.phone}</TableCell>
-                <TableCell className="capitalize">{patient.gender}</TableCell>
-                <TableCell>{patient.age ?? "—"}</TableCell>
-              </TableRow>
-            ))}
-            {patients.length === 0 && (
+        <div className="rounded-md border overflow-x-auto w-full">
+          <Table className="min-w-[600px] w-full">
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                  No patients found for &quote;{q}&quote;. Try a different search, or register them as new.
-                </TableCell>
+                <TableHead>Patient ID</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Gender</TableHead>
+                <TableHead>Age</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {patients.map((patient) => (
+                <TableRow key={patient.id} className="cursor-pointer">
+                  <TableCell>
+                    <Link href={`/doctor/patients/${patient.id}`} className="hover:underline font-mono text-xs sm:text-sm block">
+                      {patient.patientCode}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    <Link href={`/doctor/patients/${patient.id}`} className="hover:underline block">
+                      {patient.fullName}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{patient.phone}</TableCell>
+                  <TableCell className="capitalize">{patient.gender}</TableCell>
+                  <TableCell>{patient.age ?? "—"}</TableCell>
+                </TableRow>
+              ))}
+              {patients.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    No patients found for &quot;{q}&quot;. Try a different search, or register them as new.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </div>
   );

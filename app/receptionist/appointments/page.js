@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { AppointmentActions } from "@/components/receptionist/appointment-actions";
 import { Plus } from "lucide-react";
+import { serialize } from "@/lib/utils";
 
 export default async function AppointmentsPage() {
   const [appointments, doctors] = await Promise.all([
@@ -48,7 +49,7 @@ export default async function AppointmentsPage() {
                 </TableCell>
                 <TableCell className="whitespace-nowrap">Dr. {appt.doctor.fullName}</TableCell>
                 <TableCell>
-                  <AppointmentActions appointment={appt} doctors={doctors} />
+                  <AppointmentActions appointment={serialize(appt)} doctors={doctors} />
                 </TableCell>
               </TableRow>
             ))}

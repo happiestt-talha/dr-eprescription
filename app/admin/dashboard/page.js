@@ -10,20 +10,14 @@ function startOfToday() {
 export default async function AdminDashboard() {
   const today = startOfToday();
 
-  const [
-    totalDoctors,
-    totalPatients,
-    todaysPatients,
-    totalPrescriptions,
-    todaysPrescriptions,
-    totalAppointments,
-    pendingAppointments,
-    totalMedicines,
-  ] = await Promise.all([
+  const [totalDoctors, totalPatients, todaysPatients, totalPrescriptions] = await Promise.all([
     prisma.doctor.count(),
     prisma.patient.count(),
     prisma.patient.count({ where: { createdAt: { gte: today } } }),
     prisma.prescription.count(),
+  ]);
+
+  const [todaysPrescriptions, totalAppointments, pendingAppointments, totalMedicines] = await Promise.all([
     prisma.prescription.count({ where: { createdAt: { gte: today } } }),
     prisma.appointment.count(),
     prisma.appointment.count({ where: { status: "pending" } }),

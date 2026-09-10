@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PrescriptionForm } from "@/components/prescriptions/prescription-form";
+import { serialize } from "@/lib/utils";
 
 export default async function EditPrescriptionPage({ params }) {
   const { id } = await params;
@@ -27,12 +28,12 @@ export default async function EditPrescriptionPage({ params }) {
         </p>
       </div>
       <PrescriptionForm
-        patient={rx.patient}
+        patient={serialize(rx.patient)}
         medicines={medicines}
         labTests={labTests}
         mode="edit"
         prescriptionId={rx.id}
-        initialData={rx}
+        initialData={serialize(rx)}
       />
     </div>
   );

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { PrescriptionForm } from "@/components/prescriptions/prescription-form";
+import { serialize } from "@/lib/utils";
 
 export default async function NewPrescriptionPage({ searchParams }) {
   const { patientId } = await searchParams;
@@ -26,7 +27,7 @@ export default async function NewPrescriptionPage({ searchParams }) {
           {patient.fullName} · {patient.patientCode} · Dr. {doctor.fullName}
         </p>
       </div>
-      <PrescriptionForm patient={patient} medicines={medicines} labTests={labTests} />
+      <PrescriptionForm patient={serialize(patient)} medicines={medicines} labTests={labTests} />
     </div>
   );
 }
