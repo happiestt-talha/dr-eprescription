@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Users, FileEdit, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, FileEdit, LogOut, Menu, X, Stethoscope } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const links = [
@@ -33,13 +33,16 @@ export function DoctorSidebar() {
   return (
     <>
       <div className="flex h-14 w-full items-center justify-between border-b px-4 md:hidden bg-background shrink-0">
-        <span className="font-semibold text-base sm:text-lg">Doctor Panel</span>
+        <div className="flex items-center gap-2">
+          <Stethoscope className="h-5 w-5 text-primary shrink-0" strokeWidth={1.75} />
+          <span className="font-semibold text-base sm:text-lg">Doctor Panel</span>
+        </div>
         <button
           onClick={() => setOpen(true)}
-          className="flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted text-foreground transition-colors"
+          className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-accent text-foreground transition-colors"
           aria-label="Open menu"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-5 w-5" strokeWidth={1.75} />
         </button>
       </div>
 
@@ -52,23 +55,29 @@ export function DoctorSidebar() {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 border-r bg-background flex flex-col transition-transform duration-200 ease-in-out shrink-0",
+          "fixed inset-y-0 left-0 z-50 w-64 border-r bg-sidebar flex flex-col transition-transform duration-200 ease-in-out shrink-0",
           "md:static md:w-60 md:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="flex h-14 items-center justify-between px-4 border-b">
-          <span className="font-semibold text-base sm:text-lg">Doctor Panel</span>
+          <div className="flex items-center gap-2">
+            <Stethoscope className="h-5 w-5 text-primary shrink-0" strokeWidth={1.75} />
+            <span className="font-semibold text-base sm:text-lg">Doctor Panel</span>
+          </div>
           <button
             onClick={() => setOpen(false)}
-            className="md:hidden flex h-10 w-10 items-center justify-center rounded-md hover:bg-muted text-foreground transition-colors"
+            className="md:hidden flex h-10 w-10 items-center justify-center rounded-lg hover:bg-accent text-foreground transition-colors"
             aria-label="Close menu"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" strokeWidth={1.75} />
           </button>
         </div>
 
-        <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+          <p className="px-3 pt-1 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            Navigation
+          </p>
           {links.map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href);
             return (
@@ -77,26 +86,26 @@ export function DoctorSidebar() {
                 href={href}
                 onClick={() => setOpen(false)}
                 className={cn(
-                  "flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  "flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
                   active
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                    ? "bg-primary/10 text-primary border-l-[3px] border-primary pl-[9px]"
+                    : "hover:bg-accent text-muted-foreground hover:text-foreground"
                 )}
               >
-                <Icon className="h-4 w-4 shrink-0" />
+                <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
                 <span>{label}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="p-2 border-t">
+        <div className="p-3 border-t">
           <button
             type="button"
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="flex min-h-[44px] w-full items-center gap-3 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+            className="flex min-h-[44px] w-full items-center gap-3 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
           >
-            <LogOut className="h-4 w-4 shrink-0" />
+            <LogOut className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
             <span>Sign out</span>
           </button>
         </div>

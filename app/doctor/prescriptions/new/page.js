@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { PrescriptionForm } from "@/components/prescriptions/prescription-form";
 import { serialize } from "@/lib/utils";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 
 export default async function NewPrescriptionPage({ searchParams }) {
   const { patientId } = await searchParams;
@@ -21,9 +22,15 @@ export default async function NewPrescriptionPage({ searchParams }) {
 
   return (
     <div className="p-4 sm:p-6 max-w-3xl space-y-4 sm:space-y-6 w-full min-w-0">
+      <Breadcrumbs
+        segments={[
+          { label: "Prescriptions", href: "/doctor/prescriptions" },
+          { label: "New Prescription" },
+        ]}
+      />
       <div>
-        <h1 className="text-xl sm:text-2xl font-semibold">New Prescription</h1>
-        <p className="text-xs sm:text-sm text-muted-foreground break-words">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">New Prescription</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground break-words mt-0.5">
           {patient.fullName} · {patient.patientCode} · Dr. {doctor.fullName}
         </p>
       </div>

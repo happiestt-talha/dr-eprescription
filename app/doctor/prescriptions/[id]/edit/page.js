@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PrescriptionForm } from "@/components/prescriptions/prescription-form";
 import { serialize } from "@/lib/utils";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 
 export default async function EditPrescriptionPage({ params }) {
   const { id } = await params;
@@ -21,9 +22,15 @@ export default async function EditPrescriptionPage({ params }) {
 
   return (
     <div className="p-4 sm:p-6 max-w-3xl space-y-4 sm:space-y-6 w-full min-w-0">
+      <Breadcrumbs
+        segments={[
+          { label: "Prescriptions", href: "/doctor/prescriptions" },
+          { label: rx.prescriptionCode || "Edit Draft" },
+        ]}
+      />
       <div>
-        <h1 className="text-xl sm:text-2xl font-semibold">Continue Draft Prescription</h1>
-        <p className="text-xs sm:text-sm text-muted-foreground break-words mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Continue Draft Prescription</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground break-words mt-0.5">
           {rx.patient.fullName} · {rx.patient.patientCode} · Dr. {rx.doctor.fullName}
         </p>
       </div>

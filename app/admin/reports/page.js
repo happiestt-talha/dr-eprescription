@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { ReportGeneratorForm } from "@/components/admin/report-generator-form";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, FileBarChart, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default async function ReportsPage() {
@@ -13,24 +13,30 @@ export default async function ReportsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 sm:space-y-8 w-full min-w-0">
-      <h1 className="text-xl sm:text-2xl font-semibold">Reports</h1>
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Analytics & Reports</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+          Generate, export, and download clinic activity summaries.
+        </p>
+      </div>
 
       <ReportGeneratorForm doctors={doctors} />
 
       <div>
-        <h2 className="text-base sm:text-lg font-medium mb-3">Recent Reports</h2>
+        <h2 className="text-base sm:text-lg font-semibold mb-3">Generated Reports History</h2>
 
         {/* Mobile Card View (< md: 768px) */}
         <div className="md:hidden space-y-3">
           {pastReports.map((r) => (
-            <div key={r.id} className="border rounded-lg p-4 bg-card space-y-3 shadow-xs">
+            <div key={r.id} className="border border-border/60 rounded-xl p-4 bg-card space-y-3 shadow-xs">
               <div className="flex items-center justify-between border-b pb-2">
-                <div>
+                <div className="flex items-center gap-2">
+                  <FileBarChart className="h-4 w-4 text-primary" strokeWidth={1.75} />
                   <span className="font-semibold capitalize text-sm">{r.reportType} Report</span>
-                  <span className="ml-2 text-xs uppercase px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-                    {r.format}
-                  </span>
                 </div>
+                <span className="text-xs uppercase px-2 py-0.5 rounded-md bg-muted text-muted-foreground font-mono font-medium">
+                  {r.format}
+                </span>
               </div>
               <p className="text-xs text-muted-foreground">
                 Generated: {r.generatedAt.toLocaleString()}
@@ -42,56 +48,71 @@ export default async function ReportsPage() {
                   rel="noopener noreferrer"
                   className={cn(
                     buttonVariants({ variant: "outline", size: "sm" }),
-                    "w-full min-h-[44px] flex items-center justify-center gap-2"
+                    "w-full min-h-[44px] flex items-center justify-center gap-2 text-xs"
                   )}
                 >
-                  <Download className="h-4 w-4" />
+                  <Download className="h-4 w-4" strokeWidth={1.75} />
                   <span>Download {r.format.toUpperCase()}</span>
                 </a>
               </div>
             </div>
           ))}
           {pastReports.length === 0 && (
-            <div className="text-center text-muted-foreground py-8 border rounded-lg bg-card text-sm">
-              No reports generated yet.
+            <div className="text-center text-muted-foreground py-12 border border-dashed rounded-xl bg-card">
+              <FileBarChart className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" strokeWidth={1.5} />
+              <p className="font-medium text-foreground">No reports generated yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Use the generator above to create your first report.</p>
             </div>
           )}
         </div>
 
         {/* Desktop & Tablet Table (>= md: 768px) */}
-        <div className="hidden md:block rounded-md border overflow-x-auto w-full">
+        <div className="hidden md:block rounded-xl border border-border/60 overflow-hidden bg-card shadow-xs">
           <Table className="min-w-[500px] w-full">
             <TableHeader>
-              <TableRow>
-                <TableHead>Type</TableHead>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableHead>Report Type</TableHead>
                 <TableHead>Format</TableHead>
-                <TableHead>Generated</TableHead>
+                <TableHead>Generated At</TableHead>
                 <TableHead className="text-right">Download</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {pastReports.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="capitalize font-medium">{r.reportType}</TableCell>
-                  <TableCell className="uppercase">{r.format}</TableCell>
-                  <TableCell className="whitespace-nowrap">{r.generatedAt.toLocaleString()}</TableCell>
+                <TableRow key={r.id} className="hover:bg-muted/30 transition-colors">
+                  <TableCell className="capitalize font-semibold text-foreground">
+                    <div className="flex items-center gap-2">
+                      <FileBarChart className="h-4 w-4 text-primary shrink-0" strokeWidth={1.75} />
+                      {r.reportType}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs uppercase px-2 py-0.5 rounded-md bg-muted font-mono font-medium text-muted-foreground">
+                      {r.format}
+                    </span>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                    {r.generatedAt.toLocaleString()}
+                  </TableCell>
                   <TableCell className="text-right">
                     <a
                       href={r.fileUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center h-9 w-9 rounded-md hover:bg-muted transition-colors"
+                      className="inline-flex items-center justify-center h-8 w-8 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                       aria-label={`Download ${r.reportType} report`}
                     >
-                      <Download className="h-4 w-4" />
+                      <Download className="h-4 w-4" strokeWidth={1.75} />
                     </a>
                   </TableCell>
                 </TableRow>
               ))}
               {pastReports.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                    No reports generated yet.
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-16">
+                    <FileBarChart className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" strokeWidth={1.5} />
+                    <p className="font-medium text-foreground">No reports generated yet</p>
+                    <p className="text-xs text-muted-foreground mt-1">Use the generator above to create your first report.</p>
                   </TableCell>
                 </TableRow>
               )}
