@@ -44,6 +44,9 @@ model User {
   passwordHash String
   role         Role
   isActive     Boolean  @default(true)
+  // Set for temporary passwords (new patients, admin resets): the user must
+  // choose their own password before using the app.
+  mustChangePassword Boolean @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

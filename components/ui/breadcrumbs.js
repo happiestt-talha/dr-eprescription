@@ -17,7 +17,7 @@ export function Breadcrumbs({ segments }) {
   if (!segments || segments.length === 0) return null;
 
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm text-muted-foreground mb-4 flex-wrap">
+    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm text-muted-foreground mb-4 flex-wrap print:hidden">
       {segments.map((seg, i) => {
         const isLast = i === segments.length - 1;
         return (

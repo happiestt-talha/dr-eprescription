@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { FileBarChart, Sparkles } from "lucide-react";
 
 const reportTypes = [
@@ -23,6 +24,7 @@ export function ReportGeneratorForm({ doctors }) {
   const [reportType, setReportType] = useState("patients");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [readyUrl, setReadyUrl] = useState("");
 
   const showDoctorFilter = reportType === "prescriptions" || reportType === "appointments";
   const showDateFilter = reportType !== "doctors" && reportType !== "medicines";
@@ -30,21 +32,27 @@ export function ReportGeneratorForm({ doctors }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    setReadyUrl("");
     setLoading(true);
 
-    const formData = new FormData(e.target);
-    const res = await generateReport(formData);
-
-    setLoading(false);
-
-    if (res?.error) {
-      setError(res.error);
-      return;
+    try {
+      const res = await generateReport(new FormData(e.target));
+      if (res?.error) {
+        setError(res.error);
+        return;
+      }
+      // A link instead of window.open: browsers block pop-ups opened after an await.
+      setReadyUrl(res.fileUrl);
+      router.refresh();
+    } catch {
+      setError("Couldn't reach the server. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    window.open(res.fileUrl, "_blank");
-    router.refresh();
   }
+
+  const reportTypeLabels = Object.fromEntries(reportTypes.map((t) => [t.value, t.label]));
+  const doctorItems = doctors.map((d) => ({ value: d.id, label: `Dr. ${d.fullName}`, detail: d.specialization || "" }));
 
   return (
     <Card className="border-border/60 shadow-xs">
@@ -61,9 +69,9 @@ export function ReportGeneratorForm({ doctors }) {
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-end">
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Report Dataset</Label>
-            <Select name="reportType" value={reportType} onValueChange={setReportType}>
-              <SelectTrigger className="w-full min-h-[44px] md:min-h-[38px]"><SelectValue /></SelectTrigger>
+            <Label htmlFor="reportType" className="text-xs font-semibold">Report Dataset</Label>
+            <Select name="reportType" value={reportType} onValueChange={setReportType} items={reportTypeLabels}>
+              <SelectTrigger id="reportType" className="w-full min-h-[44px] md:min-h-[38px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {reportTypes.map((t) => (
                   <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
@@ -73,9 +81,9 @@ export function ReportGeneratorForm({ doctors }) {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Export Format</Label>
-            <Select name="format" defaultValue="pdf">
-              <SelectTrigger className="w-full min-h-[44px] md:min-h-[38px]"><SelectValue /></SelectTrigger>
+            <Label htmlFor="format" className="text-xs font-semibold">Export Format</Label>
+            <Select name="format" defaultValue="pdf" items={{ pdf: "PDF Document", csv: "CSV Spreadsheet" }}>
+              <SelectTrigger id="format" className="w-full min-h-[44px] md:min-h-[38px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="pdf">PDF Document</SelectItem>
                 <SelectItem value="csv">CSV Spreadsheet</SelectItem>
@@ -98,15 +106,14 @@ export function ReportGeneratorForm({ doctors }) {
 
           {showDoctorFilter && (
             <div className="space-y-1.5 col-span-1 sm:col-span-2">
-              <Label className="text-xs font-semibold">Filter by Doctor (optional)</Label>
-              <Select name="doctorId">
-                <SelectTrigger className="w-full min-h-[44px] md:min-h-[38px]"><SelectValue placeholder="All doctors" /></SelectTrigger>
-                <SelectContent>
-                  {doctors.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>Dr. {d.fullName}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="doctorId" className="text-xs font-semibold">Filter by Doctor (optional)</Label>
+              <Combobox
+                id="doctorId"
+                name="doctorId"
+                items={doctorItems}
+                placeholder="All doctors"
+                emptyText="No doctors match"
+              />
             </div>
           )}
 
@@ -117,7 +124,15 @@ export function ReportGeneratorForm({ doctors }) {
           </div>
         </form>
 
-        {error && <p className="text-sm font-medium text-destructive mt-3">{error}</p>}
+        {error && <p role="alert" className="text-sm font-medium text-destructive mt-3">{error}</p>}
+        {readyUrl && (
+          <p role="status" className="text-sm mt-3">
+            Report ready.{" "}
+            <a href={readyUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline underline-offset-2">
+              Download report
+            </a>
+          </p>
+        )}
       </CardContent>
     </Card>
   );

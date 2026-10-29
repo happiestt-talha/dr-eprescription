@@ -1,231 +1,239 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import {
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  Activity,
-  AlertCircle,
-  Loader2,
-  ArrowRight,
-  Info,
-  X,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { filterEmail, formatPhoneTyping, isValidEmail, normalizeEmail, normalizePhonePK } from "@/lib/sanitize";
+
+const TABS = [
+  { id: "staff", label: "Staff" },
+  { id: "patient", label: "Patient" },
+];
+const TAB_KEY = "medscript.loginTab";
+
+// The last-used tab is a per-device convenience kept in localStorage. Read via
+// useSyncExternalStore so the server render ("staff") and the browser agree.
+// `memoryTab` keeps switching working when storage is blocked.
+const tabListeners = new Set();
+let memoryTab = null;
+function readSavedTab() {
+  if (memoryTab) return memoryTab;
+  try {
+    return localStorage.getItem(TAB_KEY) === "patient" ? "patient" : "staff";
+  } catch {
+    return "staff";
+  }
+}
+function saveTab(tab) {
+  memoryTab = tab;
+  try {
+    localStorage.setItem(TAB_KEY, tab);
+  } catch {}
+  tabListeners.forEach((listener) => listener());
+}
+function subscribeTab(listener) {
+  tabListeners.add(listener);
+  return () => tabListeners.delete(listener);
+}
+
+const fieldClass =
+  "h-11 rounded-lg bg-card px-3.5 text-[15px] md:text-sm border-border shadow-[0_1px_0_rgba(16,24,20,0.03)] focus-visible:ring-primary/25 focus-visible:border-primary";
 
 export default function LoginPage() {
   const router = useRouter();
+  const tab = useSyncExternalStore(subscribeTab, readSavedTab, () => "staff");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [fieldError, setFieldError] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showForgotNotice, setShowForgotNotice] = useState(false);
+
+  function switchTab(next) {
+    saveTab(next);
+    setError("");
+    setFieldError("");
+  }
+
+  // The identifier each tab submits, in the canonical stored form.
+  function identifier() {
+    if (tab === "staff") {
+      const value = normalizeEmail(email);
+      return isValidEmail(value) ? value : null;
+    }
+    return normalizePhonePK(phone) || null;
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    setLoading(true);
-
-    const res = await signIn("credentials", { email, password, redirect: false });
-    setLoading(false);
-
-    if (res?.error) {
-      setError("Invalid email or password");
+    const id = identifier();
+    if (!id) {
+      setFieldError(
+        tab === "staff"
+          ? "Enter a valid email, e.g. name@clinic.pk"
+          : "Enter the mobile number you registered with, e.g. 0300-1234567"
+      );
       return;
     }
+    setFieldError("");
+    setLoading(true);
 
-    router.push("/");
-    router.refresh();
-  }
-
-  function fillDemo(demoEmail, demoPassword) {
-    setEmail(demoEmail);
-    setPassword(demoPassword);
-    setError("");
+    try {
+      const res = await signIn("credentials", { email: id, password, redirect: false });
+      if (res?.error) {
+        setError(
+          `That ${tab === "staff" ? "email" : "phone number"} and password don't match. After 5 failed attempts, sign-in is paused for 15 minutes.`
+        );
+        setLoading(false);
+        return;
+      }
+      router.push("/");
+      router.refresh();
+    } catch {
+      setError("Couldn't reach the server. Check your connection and try again.");
+      setLoading(false);
+    }
   }
 
   return (
-    <div className="w-full max-w-md mx-auto space-y-6 animate-in fade-in-50 duration-300 slide-in-from-bottom-2">
-      {/* Top branding / logo anchor */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground shadow-sm shadow-primary/20">
-            <Activity className="h-5 w-5" strokeWidth={2.4} />
-          </div>
-          <span className="font-bold text-lg tracking-tight text-foreground">DocRx Portal</span>
-        </div>
-        <div className="pt-2">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            Welcome back
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Sign in to access your clinical dashboard and patient records.
-          </p>
-        </div>
+    <div className="w-full max-w-[360px] animate-in fade-in-0 slide-in-from-bottom-1 duration-500">
+      <h1 className="text-[1.75rem] font-semibold tracking-tight">Sign in</h1>
+      <p className="mt-1.5 text-sm text-muted-foreground">
+        {tab === "staff" ? "Doctors, reception and admins sign in with their email." : "Patients sign in with their mobile number."}
+      </p>
+
+      <div role="tablist" aria-label="Who is signing in" className="mt-7 grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted/50 p-1">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls="login-form"
+            onClick={() => switchTab(t.id)}
+            className={cn(
+              "h-9 rounded-md text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+              tab === t.id ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {/* Forgot Password Notice / Modal popup */}
-      {showForgotNotice && (
-        <div className="relative p-3.5 rounded-xl border border-info/30 bg-info/10 text-foreground text-xs space-y-1.5 animate-in fade-in-50">
-          <button
-            type="button"
-            onClick={() => setShowForgotNotice(false)}
-            className="absolute top-3 right-3 text-muted-foreground hover:text-foreground p-0.5"
-            aria-label="Close notification"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-          <div className="flex items-center gap-2 font-semibold text-info">
-            <Info className="h-4 w-4 shrink-0" />
-            <span>Password Reset Notice</span>
-          </div>
-          <p className="text-muted-foreground leading-relaxed pr-4">
-            For PMDC clinical compliance and healthcare data protection, password resets are handled directly by your Clinic Administrator. Please contact your system administrator to update your credentials.
-          </p>
-        </div>
-      )}
-
-      {/* Main Authentication Form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Email Field with Icon prefix */}
-        <div className="space-y-1.5">
-          <Label htmlFor="email" className="text-xs sm:text-sm font-medium text-foreground">
-            Email address
-          </Label>
-          <div className="relative flex items-center">
-            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+      <form id="login-form" role="tabpanel" aria-labelledby={`tab-${tab}`} onSubmit={handleSubmit} className="mt-6 space-y-5" noValidate>
+        {tab === "staff" ? (
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-[13px] font-medium">
+              Email
+            </Label>
             <Input
               id="email"
               type="email"
+              inputMode="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="dr.ahmed.raza@drclinic.pk"
-              className="pl-10 h-11 text-sm bg-background border-border/80 focus-visible:ring-primary focus-visible:border-primary"
-              autoComplete="email"
+              onChange={(e) => {
+                setEmail(filterEmail(e.target.value));
+                setFieldError("");
+              }}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              maxLength={120}
+              placeholder="name@clinic.pk"
+              aria-invalid={fieldError ? true : undefined}
+              aria-describedby={fieldError ? "id-error" : undefined}
+              className={fieldClass}
             />
           </div>
-        </div>
+        ) : (
+          <div className="space-y-2">
+            <Label htmlFor="phone" className="text-[13px] font-medium">
+              Mobile number
+            </Label>
+            <Input
+              id="phone"
+              type="tel"
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => {
+                setPhone(formatPhoneTyping(e.target.value));
+                setFieldError("");
+              }}
+              autoComplete="username"
+              maxLength={16}
+              placeholder="0300-1234567"
+              aria-invalid={fieldError ? true : undefined}
+              aria-describedby={fieldError ? "id-error" : "phone-hint"}
+              className={fieldClass}
+            />
+            {!fieldError && (
+              <p id="phone-hint" className="text-xs text-muted-foreground">
+                The mobile number you registered with at the clinic.
+              </p>
+            )}
+          </div>
+        )}
+        {fieldError && (
+          <p id="id-error" role="alert" className="-mt-3 text-xs text-destructive">
+            {fieldError}
+          </p>
+        )}
 
-        {/* Password Field with Icon prefix and Eye toggle */}
-        <div className="space-y-1.5">
-          <Label htmlFor="password" className="text-xs sm:text-sm font-medium text-foreground">
+        <div className="space-y-2">
+          <Label htmlFor="password" className="text-[13px] font-medium">
             Password
           </Label>
-          <div className="relative flex items-center">
-            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <div className="relative">
             <Input
               id="password"
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              placeholder="••••••••••••"
-              className="pl-10 pr-10 h-11 text-sm bg-background border-border/80 focus-visible:ring-primary focus-visible:border-primary"
               autoComplete="current-password"
+              className={`${fieldClass} pr-16`}
             />
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 focus:outline-none"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPassword ? "Hide" : "Show"}
             </button>
           </div>
         </div>
 
-        {/* Remember me & Forgot Password links */}
-        <div className="flex items-center justify-between text-xs pt-0.5">
-          <label className="flex items-center gap-2 cursor-pointer select-none text-muted-foreground hover:text-foreground transition-colors">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="rounded border-border text-primary focus:ring-primary accent-primary h-3.5 w-3.5 cursor-pointer"
-            />
-            <span>Remember me for 30 days</span>
-          </label>
-          <button
-            type="button"
-            onClick={() => setShowForgotNotice(true)}
-            className="font-medium text-primary hover:underline hover:text-primary/80 transition-colors"
-          >
-            Forgot password?
-          </button>
-        </div>
-
-        {/* Semantic Error Alert (uses destructive design tokens, not raw inline hex) */}
-        {error && (
-          <div
-            role="alert"
-            className="flex items-center gap-2.5 p-3 rounded-lg bg-destructive/10 border border-destructive/25 text-destructive text-sm animate-in fade-in-50"
-          >
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span className="font-medium text-xs sm:text-sm">{error}</span>
-          </div>
-        )}
-
-        {/* Primary Submit Button */}
-        <Button
-          type="submit"
-          disabled={loading}
-          className="w-full h-11 text-sm font-semibold rounded-lg shadow-sm transition-all"
-        >
+        <Button type="submit" disabled={loading} className="w-full h-11 rounded-lg text-sm font-semibold mt-2">
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              <span>Signing in...</span>
+              Signing in
             </>
           ) : (
-            <>
-              <span>Sign in to account</span>
-              <ArrowRight className="h-4 w-4 ml-1.5" />
-            </>
+            "Sign in"
           )}
         </Button>
+
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
       </form>
 
-      {/* Demo Credentials Quick-Fill (helpful for testing & evaluation) */}
-      <div className="pt-5 border-t border-border/60 space-y-2.5">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-            Quick Demo Accounts
-          </span>
-          <span className="text-[11px] text-muted-foreground/70">Click role to fill</span>
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            type="button"
-            onClick={() => fillDemo("dr.ahmed.raza@drclinic.pk", "Doctor@123")}
-            className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-border/80 bg-card hover:bg-accent hover:border-primary/40 text-foreground transition-all text-center truncate shadow-2xs"
-          >
-            Doctor
-          </button>
-          <button
-            type="button"
-            onClick={() => fillDemo("admin@clinic.com", "admin123")}
-            className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-border/80 bg-card hover:bg-accent hover:border-primary/40 text-foreground transition-all text-center truncate shadow-2xs"
-          >
-            Admin
-          </button>
-          <button
-            type="button"
-            onClick={() => fillDemo("sara.ahmed@drclinic.pk", "Reception@123")}
-            className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-border/80 bg-card hover:bg-accent hover:border-primary/40 text-foreground transition-all text-center truncate shadow-2xs"
-          >
-            Receptionist
-          </button>
-        </div>
-      </div>
+      <p className="mt-8 text-xs text-muted-foreground">
+        Forgot your password? Ask your clinic administrator to reset it.
+      </p>
     </div>
   );
 }

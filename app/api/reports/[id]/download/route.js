@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/auth";
-import { fetchReportData, buildReportCsv, buildReportDocxBuffer } from "@/lib/reports";
-import { convertDocxBufferToPdf } from "@/lib/pdf";
+import { fetchReportData, buildReportCsv } from "@/lib/reports";
+import { renderReportPdf } from "@/lib/pdf";
 
 export async function GET(request, { params }) {
   const { id } = await params;
@@ -20,18 +20,19 @@ export async function GET(request, { params }) {
     const csv = buildReportCsv(headers, rows);
     return new NextResponse(csv, {
       headers: {
-        "Content-Type": "text/csv",
+        "Content-Type": "text/csv; charset=utf-8",
+        "Cache-Control": "private, no-store",
         "Content-Disposition": `attachment; filename="${report.reportType}-report.csv"`,
       },
     });
   }
 
-  const docxBuffer = await buildReportDocxBuffer(title, headers, rows);
-  const pdfBuffer = await convertDocxBufferToPdf(docxBuffer);
+  const pdfBuffer = await renderReportPdf(title, headers, rows);
 
   return new NextResponse(pdfBuffer, {
     headers: {
       "Content-Type": "application/pdf",
+      "Cache-Control": "private, no-store",
       "Content-Disposition": `inline; filename="${report.reportType}-report.pdf"`,
     },
   });

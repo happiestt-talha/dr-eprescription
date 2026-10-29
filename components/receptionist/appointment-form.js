@@ -6,11 +6,11 @@ import { createAppointment } from "@/lib/actions/appointments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Card, CardContent } from "@/components/ui/card";
 import { CalendarPlus } from "lucide-react";
 
-export function AppointmentForm({ patientId, doctors }) {
+export function AppointmentForm({ patientId, doctors, minDateTime }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,16 +23,22 @@ export function AppointmentForm({ patientId, doctors }) {
     const formData = new FormData(e.target);
     formData.set("patientId", patientId);
 
-    const res = await createAppointment(formData);
-    setLoading(false);
-
-    if (res?.error) {
-      setError(res.error);
-      return;
+    try {
+      const res = await createAppointment(formData);
+      if (res?.error) {
+        setError(res.error);
+        setLoading(false);
+        return;
+      }
+      // Keep the button disabled while navigating, so the booking can't be made twice.
+      router.push("/receptionist/appointments");
+    } catch {
+      setError("Couldn't reach the server. Please try again.");
+      setLoading(false);
     }
-
-    router.push("/receptionist/appointments");
   }
+
+  const doctorItems = doctors.map((d) => ({ value: d.id, label: `Dr. ${d.fullName}`, detail: d.specialization || "" }));
 
   return (
     <Card className="border-border/60 shadow-xs">
@@ -40,18 +46,14 @@ export function AppointmentForm({ patientId, doctors }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="doctorId" className="text-xs font-semibold">Attending Doctor *</Label>
-            <Select name="doctorId" required>
-              <SelectTrigger id="doctorId" className="w-full min-h-[44px] md:min-h-[38px]">
-                <SelectValue placeholder="Select doctor" />
-              </SelectTrigger>
-              <SelectContent>
-                {doctors.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    Dr. {d.fullName} ({d.specialization})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              id="doctorId"
+              name="doctorId"
+              items={doctorItems}
+              placeholder="Search doctor by name or specialty"
+              emptyText="No doctors match"
+              required
+            />
           </div>
 
           <div className="space-y-1.5">
@@ -60,12 +62,13 @@ export function AppointmentForm({ patientId, doctors }) {
               id="scheduledAt"
               name="scheduledAt"
               type="datetime-local"
+              min={minDateTime}
               required
               className="min-h-[44px] md:min-h-[38px] w-full"
             />
           </div>
 
-          {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+          {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}
 
           <Button type="submit" disabled={loading} className="w-full sm:w-auto min-h-[44px] shadow-xs">
             {loading ? "Booking..." : "Confirm & Book Appointment"}

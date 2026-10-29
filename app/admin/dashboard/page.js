@@ -10,15 +10,10 @@ import {
   Clock,
   Pill,
 } from "lucide-react";
-
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+import { startOfClinicDay } from "@/lib/datetime";
 
 export default async function AdminDashboard() {
-  const today = startOfToday();
+  const today = startOfClinicDay();
 
   const [totalDoctors, totalPatients, todaysPatients, totalPrescriptions] = await Promise.all([
     prisma.doctor.count(),

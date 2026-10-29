@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Download, Stethoscope, Pill, CheckCircle2, HeartPulse, FileText } from "lucide-react";
+import { formatDate } from "@/lib/datetime";
 
 export default async function PatientPrescriptionViewPage({ params }) {
   const { id } = await params;
@@ -38,15 +39,13 @@ export default async function PatientPrescriptionViewPage({ params }) {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Prescription {rx.prescriptionCode}</h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Visit Date: {rx.visitDate.toLocaleDateString()}
+            Visit Date: {formatDate(rx.visitDate)}
           </p>
         </div>
-        <a href={`/api/prescriptions/${rx.id}/pdf`} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
-          <Button className="w-full sm:w-auto min-h-[44px] shadow-xs">
+        <Button className="w-full sm:w-auto min-h-[44px] shadow-xs" nativeButton={false} render={<a href={`/api/prescriptions/${rx.id}/pdf`} target="_blank" rel="noopener noreferrer" />}>
             <Download className="mr-2 h-4 w-4" strokeWidth={1.75} />
             Download PDF
           </Button>
-        </a>
       </div>
 
       {/* Verification Card */}

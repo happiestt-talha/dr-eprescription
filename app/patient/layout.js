@@ -10,7 +10,9 @@ export default async function PatientLayout({ children }) {
 
   return (
     <div className="min-h-screen flex flex-col w-full overflow-x-hidden">
-      <PatientTopBar />
+      <div className="contents print:hidden">
+        <PatientTopBar />
+      </div>
       <main className="flex-1 min-w-0 w-full overflow-x-hidden">{children}</main>
     </div>
   );

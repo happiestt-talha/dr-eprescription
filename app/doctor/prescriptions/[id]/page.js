@@ -1,17 +1,22 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { getCurrentDoctor } from "@/lib/auth-guards";
 import { Card, CardContent } from "@/components/ui/card";
 import { PrintButton } from "@/components/prescriptions/print-button";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { PrescriptionViewTabs } from "@/components/doctor/prescription-tabs";
 import { Download, CheckCircle2, User, Stethoscope, HeartPulse, Pill, FileText } from "lucide-react";
+import { formatDate } from "@/lib/datetime";
 
 export default async function PrescriptionViewPage({ params }) {
   const { id } = await params;
+  const doctor = await getCurrentDoctor();
+  if (!doctor) return null; // layout shows the "profile not set up" message
 
-  const rx = await prisma.prescription.findUnique({
-    where: { id },
+  // Scoped to the signed-in doctor: other doctors' prescriptions 404.
+  const rx = await prisma.prescription.findFirst({
+    where: { id, doctorId: doctor.id },
     include: {
       patient: true,
       doctor: true,
@@ -42,12 +47,10 @@ export default async function PrescriptionViewPage({ params }) {
               <p className="text-xs sm:text-sm text-muted-foreground">
                 Scan QR to verify authenticity online, or download printable PDF.
               </p>
-              <a href={`/api/prescriptions/${rx.id}/pdf`} target="_blank" rel="noopener noreferrer" className="inline-block w-full sm:w-auto">
-                <Button className="w-full sm:w-auto min-h-[40px] text-xs sm:text-sm">
+              <Button className="w-full sm:w-auto min-h-[40px] text-xs sm:text-sm" nativeButton={false} render={<a href={`/api/prescriptions/${rx.id}/pdf`} target="_blank" rel="noopener noreferrer" />}>
                   <Download className="mr-2 h-4 w-4" strokeWidth={1.75} />
                   Download PDF
                 </Button>
-              </a>
             </div>
           </CardContent>
         </Card>
@@ -69,7 +72,7 @@ export default async function PrescriptionViewPage({ params }) {
               Prescribing Doctor
             </div>
             <p className="font-semibold text-foreground">Dr. {rx.doctor.fullName}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{rx.doctor.specialization} · Reg #{rx.doctor.licenseNumber || "—"}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{rx.doctor.specialization} · Reg #{rx.doctor.registrationNo || "—"}</p>
           </div>
         </CardContent>
       </Card>
@@ -86,37 +89,37 @@ export default async function PrescriptionViewPage({ params }) {
               Patient Vitals
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-sm">
-              {rx.vitals.bloodPressure && (
+              {rx.vitals.bloodPressure != null && (
                 <div className="p-2.5 rounded-md bg-muted/30 border border-border/40">
                   <p className="text-xs text-muted-foreground">Blood Pressure</p>
                   <p className="font-semibold mt-0.5">{rx.vitals.bloodPressure}</p>
                 </div>
               )}
-              {rx.vitals.temperatureF && (
+              {rx.vitals.temperatureF != null && (
                 <div className="p-2.5 rounded-md bg-muted/30 border border-border/40">
                   <p className="text-xs text-muted-foreground">Temperature</p>
                   <p className="font-semibold mt-0.5">{rx.vitals.temperatureF.toString()}°F</p>
                 </div>
               )}
-              {rx.vitals.pulseRate && (
+              {rx.vitals.pulseRate != null && (
                 <div className="p-2.5 rounded-md bg-muted/30 border border-border/40">
                   <p className="text-xs text-muted-foreground">Pulse</p>
                   <p className="font-semibold mt-0.5">{rx.vitals.pulseRate} bpm</p>
                 </div>
               )}
-              {rx.vitals.spo2 && (
+              {rx.vitals.spo2 != null && (
                 <div className="p-2.5 rounded-md bg-muted/30 border border-border/40">
                   <p className="text-xs text-muted-foreground">SpO2</p>
                   <p className="font-semibold mt-0.5">{rx.vitals.spo2.toString()}%</p>
                 </div>
               )}
-              {rx.vitals.heightCm && (
+              {rx.vitals.heightCm != null && (
                 <div className="p-2.5 rounded-md bg-muted/30 border border-border/40">
                   <p className="text-xs text-muted-foreground">Height</p>
                   <p className="font-semibold mt-0.5">{rx.vitals.heightCm.toString()} cm</p>
                 </div>
               )}
-              {rx.vitals.weightKg && (
+              {rx.vitals.weightKg != null && (
                 <div className="p-2.5 rounded-md bg-muted/30 border border-border/40">
                   <p className="text-xs text-muted-foreground">Weight</p>
                   <p className="font-semibold mt-0.5">{rx.vitals.weightKg.toString()} kg</p>
@@ -219,7 +222,8 @@ export default async function PrescriptionViewPage({ params }) {
     <div className="p-4 sm:p-6 max-w-3xl space-y-4 sm:space-y-6 w-full min-w-0">
       <Breadcrumbs
         segments={[
-          { label: "Prescriptions", href: "/doctor/prescriptions" },
+          { label: "Patients", href: "/doctor/patients" },
+          { label: rx.patient.fullName, href: `/doctor/patients/${rx.patientId}` },
           { label: rx.prescriptionCode },
         ]}
       />
@@ -228,7 +232,7 @@ export default async function PrescriptionViewPage({ params }) {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Prescription {rx.prescriptionCode}</h1>
           <p className="text-xs sm:text-sm text-muted-foreground capitalize mt-0.5">
-            {rx.status} · {rx.visitDate.toLocaleDateString()}
+            {rx.status} · {formatDate(rx.visitDate)}
           </p>
         </div>
         <PrintButton className="w-full sm:w-auto min-h-[44px]" />

@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { CalendarPlus, Pencil, User } from "lucide-react";
+import { formatDate } from "@/lib/datetime";
+import { ResetPasswordButton } from "@/components/account/reset-password-button";
 
 export default async function ReceptionistPatientProfilePage({ params }) {
   const { id } = await params;
@@ -47,18 +49,17 @@ export default async function ReceptionistPatientProfilePage({ params }) {
           <p className="text-xs sm:text-sm text-muted-foreground font-mono mt-0.5">{patient.patientCode}</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-          <Link href={`/receptionist/patients/${patient.id}/edit`} className="w-full sm:w-auto">
-            <Button variant="outline" className="w-full sm:w-auto min-h-[44px]">
+          {patient.userId ? (
+            <ResetPasswordButton kind="patient" targetId={patient.id} name={patient.fullName} className="w-full sm:w-auto" />
+          ) : null}
+          <Button variant="outline" className="w-full sm:w-auto min-h-[44px]" nativeButton={false} render={<Link href={`/receptionist/patients/${patient.id}/edit`} className="w-full sm:w-auto" />}>
               <Pencil className="mr-2 h-4 w-4" strokeWidth={1.75} />
               Edit
             </Button>
-          </Link>
-          <Link href={`/receptionist/appointments/new?patientId=${patient.id}`} className="w-full sm:w-auto">
-            <Button className="w-full sm:w-auto min-h-[44px]">
+          <Button className="w-full sm:w-auto min-h-[44px]" nativeButton={false} render={<Link href={`/receptionist/appointments/new?patientId=${patient.id}`} className="w-full sm:w-auto" />}>
               <CalendarPlus className="mr-2 h-4 w-4" strokeWidth={1.75} />
               Book Appointment
             </Button>
-          </Link>
         </div>
       </div>
 
@@ -87,7 +88,7 @@ export default async function ReceptionistPatientProfilePage({ params }) {
             <TableBody>
               {patient.prescriptions.map((rx) => (
                 <TableRow key={rx.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="whitespace-nowrap font-medium">{rx.visitDate.toLocaleDateString()}</TableCell>
+                  <TableCell className="whitespace-nowrap font-medium">{formatDate(rx.visitDate)}</TableCell>
                   <TableCell className="whitespace-nowrap">Dr. {rx.doctor.fullName}</TableCell>
                   <TableCell className="capitalize">
                     <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full capitalize font-medium ${

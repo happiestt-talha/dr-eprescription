@@ -11,13 +11,17 @@ export default async function ReceptionistLayout({ children }) {
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row w-full overflow-x-hidden">
-      <ReceptionistSidebar />
+      <div className="contents print:hidden">
+        <ReceptionistSidebar />
+      </div>
       <div className="flex-1 min-w-0 w-full overflow-x-hidden flex flex-col">
-        <TopBar
-          title="Reception Desk"
-          userName={session.user.email?.split("@")[0] || "Receptionist"}
-          userRole="receptionist"
-        />
+        <div className="contents print:hidden">
+          <TopBar
+            title="Reception Desk"
+            userName={session.user.email?.split("@")[0] || "Receptionist"}
+            userRole="receptionist"
+          />
+        </div>
         <main className="flex-1 min-w-0 w-full overflow-x-hidden">{children}</main>
       </div>
     </div>
