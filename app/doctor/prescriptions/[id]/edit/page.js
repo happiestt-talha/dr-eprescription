@@ -1,14 +1,18 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { getCurrentDoctor } from "@/lib/auth-guards";
 import { PrescriptionForm } from "@/components/prescriptions/prescription-form";
 import { serialize } from "@/lib/utils";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 
 export default async function EditPrescriptionPage({ params }) {
   const { id } = await params;
+  const doctor = await getCurrentDoctor();
+  if (!doctor) return null; // layout shows the "profile not set up" message
 
-  const rx = await prisma.prescription.findUnique({
-    where: { id },
+  // Scoped to the signed-in doctor: other doctors' prescriptions 404.
+  const rx = await prisma.prescription.findFirst({
+    where: { id, doctorId: doctor.id },
     include: { patient: true, doctor: true, vitals: true, medicines: true, labTests: true },
   });
 
@@ -24,7 +28,8 @@ export default async function EditPrescriptionPage({ params }) {
     <div className="p-4 sm:p-6 max-w-3xl space-y-4 sm:space-y-6 w-full min-w-0">
       <Breadcrumbs
         segments={[
-          { label: "Prescriptions", href: "/doctor/prescriptions" },
+          { label: "Patients", href: "/doctor/patients" },
+          { label: rx.patient.fullName, href: `/doctor/patients/${rx.patientId}` },
           { label: rx.prescriptionCode || "Edit Draft" },
         ]}
       />

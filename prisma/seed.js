@@ -21,7 +21,28 @@ function pickMultiple(arr, count) {
   return shuffled.slice(0, count);
 }
 
+function databaseHost() {
+  try {
+    return new URL(process.env.DATABASE_URL).host;
+  } catch {
+    return "(unknown)";
+  }
+}
+
 async function main() {
+  // This script deletes every row in every table. Refuse unless explicitly
+  // allowed, so it can't wipe a real database by accident.
+  console.log(`Target database: ${databaseHost()}`);
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Refusing to seed: NODE_ENV is production.");
+  }
+  if (process.env.ALLOW_SEED_WIPE !== "true") {
+    throw new Error(
+      "Refusing to seed: this DELETES ALL DATA in the database above. " +
+        "If that is really what you want, re-run with ALLOW_SEED_WIPE=true."
+    );
+  }
+
   console.log("Cleaning existing records for fresh seed...");
   await prisma.prescriptionMedicine.deleteMany();
   await prisma.prescriptionLabTest.deleteMany();
@@ -46,7 +67,7 @@ async function main() {
     {
       email: "dr.ahmed.raza@drclinic.pk",
       password: "Doctor@123",
-      fullName: "Dr. Ahmed Raza",
+      fullName: "Ahmed Raza",
       qualification: "MBBS, FCPS (Medicine)",
       specialization: "General Physician",
       registrationNo: "PMDC-41235-P",
@@ -57,7 +78,7 @@ async function main() {
     {
       email: "dr.ayesha.siddiqui@drclinic.pk",
       password: "Doctor@123",
-      fullName: "Dr. Ayesha Siddiqui",
+      fullName: "Ayesha Siddiqui",
       qualification: "MBBS, FCPS (Gynae & Obs)",
       specialization: "Gynecologist",
       registrationNo: "PMDC-38942-P",
@@ -68,7 +89,7 @@ async function main() {
     {
       email: "dr.bilal.khan@drclinic.pk",
       password: "Doctor@123",
-      fullName: "Dr. Muhammad Bilal Khan",
+      fullName: "Muhammad Bilal Khan",
       qualification: "MBBS, FCPS (Cardiology)",
       specialization: "Cardiologist",
       registrationNo: "PMDC-27650-P",
@@ -79,7 +100,7 @@ async function main() {
     {
       email: "dr.sana.malik@drclinic.pk",
       password: "Doctor@123",
-      fullName: "Dr. Sana Malik",
+      fullName: "Sana Malik",
       qualification: "MBBS, FCPS (Pediatrics)",
       specialization: "Pediatrician",
       registrationNo: "PMDC-55012-P",
@@ -90,7 +111,7 @@ async function main() {
     {
       email: "dr.farhan.tariq@drclinic.pk",
       password: "Doctor@123",
-      fullName: "Dr. Farhan Tariq",
+      fullName: "Farhan Tariq",
       qualification: "MBBS, MCPS (Dermatology)",
       specialization: "Dermatologist",
       registrationNo: "PMDC-63187-P",

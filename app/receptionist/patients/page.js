@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { Button } from "@/components/ui/button";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { PatientSearchBar } from "@/components/patients/patient-search-bar";
-import { Plus, Users, Search, CalendarPlus } from "lucide-react";
+import { PatientSearch } from "@/components/patients/patient-search";
+import { Plus } from "lucide-react";
+import { firstParam } from "@/lib/utils";
+
+const SEARCH_LIMIT = 25;
 
 export default async function ReceptionistPatientsPage({ searchParams }) {
-  const { q } = await searchParams;
+  const q = firstParam((await searchParams).q)?.slice(0, 100);
 
   const patients = q
     ? await prisma.patient.findMany({
@@ -18,8 +20,9 @@ export default async function ReceptionistPatientsPage({ searchParams }) {
             { patientCode: { contains: q, mode: "insensitive" } },
           ],
         },
+        select: { id: true, fullName: true, patientCode: true, phone: true, cnic: true, gender: true, age: true },
         orderBy: { fullName: "asc" },
-        take: 25,
+        take: SEARCH_LIMIT,
       })
     : [];
 
@@ -32,138 +35,19 @@ export default async function ReceptionistPatientsPage({ searchParams }) {
             Search patient database to check visit history or book appointments.
           </p>
         </div>
-        <Link href="/receptionist/patients/new" className="w-full sm:w-auto">
-          <Button className="w-full sm:w-auto min-h-[44px] shadow-xs">
+        <Button className="w-full sm:w-auto min-h-[44px] shadow-xs" nativeButton={false} render={<Link href="/receptionist/patients/new" className="w-full sm:w-auto" />}>
             <Plus className="mr-2 h-4 w-4" strokeWidth={1.75} />
             Register Patient
           </Button>
-        </Link>
       </div>
 
-      <PatientSearchBar defaultValue={q || ""} basePath="/receptionist/patients" />
-
-      {q ? (
-        <>
-          {/* Mobile Card View (< md: 768px) */}
-          <div className="md:hidden space-y-3">
-            {patients.map((patient) => (
-              <div key={patient.id} className="border border-border/60 rounded-xl p-4 bg-card space-y-3 shadow-xs">
-                <div className="flex items-start justify-between border-b pb-2.5">
-                  <div>
-                    <h2 className="font-semibold text-base text-foreground">{patient.fullName}</h2>
-                    <p className="text-xs text-muted-foreground font-mono mt-0.5">{patient.patientCode}</p>
-                  </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full capitalize font-medium bg-muted text-muted-foreground">
-                    {patient.gender} · {patient.age ? `${patient.age}y` : "—"}
-                  </span>
-                </div>
-
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Phone:</span>
-                    <span className="font-medium text-foreground">{patient.phone}</span>
-                  </div>
-                  {patient.cnic && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">CNIC:</span>
-                      <span className="font-mono text-foreground">{patient.cnic}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between gap-2 pt-2 border-t">
-                  <Link href={`/receptionist/patients/${patient.id}`} className="flex-1">
-                    <Button variant="outline" size="sm" className="w-full min-h-[40px] text-xs">
-                      View Profile
-                    </Button>
-                  </Link>
-                  <Link href={`/receptionist/appointments/new?patientId=${patient.id}`} className="flex-1">
-                    <Button size="sm" className="w-full min-h-[40px] text-xs">
-                      Book Visit
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            ))}
-            {patients.length === 0 && (
-              <div className="text-center text-muted-foreground py-12 border border-dashed rounded-xl bg-card">
-                <Users className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" strokeWidth={1.5} />
-                <p className="font-medium text-foreground">No patients found</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  No records matching &quot;{q}&quot;. Register them as a new patient above.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Desktop & Tablet Table (>= md: 768px) */}
-          <div className="hidden md:block rounded-xl border border-border/60 overflow-hidden bg-card shadow-xs">
-            <Table className="min-w-[600px] w-full">
-              <TableHeader>
-                <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  <TableHead>Patient Code</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Gender / Age</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {patients.map((patient) => (
-                  <TableRow key={patient.id} className="hover:bg-muted/30 transition-colors">
-                    <TableCell>
-                      <Link href={`/receptionist/patients/${patient.id}`} className="font-mono text-xs text-primary hover:underline font-medium">
-                        {patient.patientCode}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="font-semibold text-foreground">
-                      <Link href={`/receptionist/patients/${patient.id}`} className="hover:underline">
-                        {patient.fullName}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">{patient.phone}</TableCell>
-                    <TableCell className="capitalize text-muted-foreground">
-                      {patient.gender} · {patient.age ? `${patient.age} yrs` : "—"}
-                    </TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Link href={`/receptionist/patients/${patient.id}`}>
-                        <Button variant="ghost" size="sm" className="h-8 text-xs font-medium">
-                          Profile
-                        </Button>
-                      </Link>
-                      <Link href={`/receptionist/appointments/new?patientId=${patient.id}`}>
-                        <Button size="sm" className="h-8 text-xs font-medium shadow-xs">
-                          <CalendarPlus className="mr-1 h-3.5 w-3.5" />
-                          Book
-                        </Button>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {patients.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-16">
-                      <Users className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" strokeWidth={1.5} />
-                      <p className="font-medium text-foreground">No patients found</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        No records matching &quot;{q}&quot;. Register them as a new patient above.
-                      </p>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </>
-      ) : (
-        <div className="text-center text-muted-foreground py-16 border border-dashed rounded-xl bg-card/50">
-          <Search className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" strokeWidth={1.5} />
-          <h3 className="font-semibold text-foreground">Search Patient Database</h3>
-          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-            Type a patient name, phone number, CNIC, or patient ID code in the search bar above to look up records.
-          </p>
-        </div>
-      )}
+      <PatientSearch
+        basePath="/receptionist/patients"
+        portal="receptionist"
+        initialQuery={q || ""}
+        initialResults={patients}
+        limit={SEARCH_LIMIT}
+      />
     </div>
   );
 }

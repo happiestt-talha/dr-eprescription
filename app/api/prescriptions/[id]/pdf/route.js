@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/auth";
-import { buildPrescriptionDocxBuffer, convertDocxBufferToPdf } from "@/lib/pdf";
+import { canAccessPrescription } from "@/lib/auth-guards";
+import { buildVerifyUrl } from "@/lib/verify";
+import { renderPrescriptionPdf } from "@/lib/pdf";
 
 export async function GET(request, { params }) {
   const { id } = await params;
@@ -20,22 +22,18 @@ export async function GET(request, { params }) {
   });
   if (!rx) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const allowed =
-    session.user.role === "admin" ||
-    (session.user.role === "doctor" && rx.doctor.userId === session.user.id) ||
-    (session.user.role === "patient" && rx.patient.userId === session.user.id);
+  if (!canAccessPrescription(session, rx)) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  }
 
-  if (!allowed) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  const verifyUrl = buildVerifyUrl(request.url, rx.prescriptionCode);
 
-  const baseUrl = process.env.NEXTAUTH_URL || new URL(request.url).origin;
-  const verifyUrl = `${baseUrl}/verify/${rx.prescriptionCode}`;
-
-  const docxBuffer = await buildPrescriptionDocxBuffer(rx, verifyUrl);
-  const pdfBuffer = await convertDocxBufferToPdf(docxBuffer);
+  const pdfBuffer = await renderPrescriptionPdf(rx, verifyUrl);
 
   return new NextResponse(pdfBuffer, {
     headers: {
       "Content-Type": "application/pdf",
+      "Cache-Control": "private, no-store",
       "Content-Disposition": `inline; filename="${rx.prescriptionCode}.pdf"`,
     },
   });

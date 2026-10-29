@@ -1,10 +1,14 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight, ScrollText, Filter } from "lucide-react";
+import { SearchInput, SearchCount, NoMatches } from "@/components/ui/search-input";
+import { matches } from "@/lib/search";
+import { cn } from "@/lib/utils";
 
 function actionLabel(action) {
   return action.replace(/_/g, " ");
@@ -12,11 +16,12 @@ function actionLabel(action) {
 
 function getActionBadgeStyle(action) {
   const act = action.toLowerCase();
-  if (act.includes("create") || act.includes("register") || act.includes("add") || act.includes("active")) {
-    return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20";
-  }
-  if (act.includes("delete") || act.includes("remove") || act.includes("deactivate") || act.includes("inactive")) {
+  // Check "deactivate" before "active": "deactivated_doctor" contains "active".
+  if (act.includes("delete") || act.includes("remove") || act.includes("deactivate") || act.includes("inactive") || act.includes("failed")) {
     return "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20";
+  }
+  if (act.includes("create") || act.includes("register") || act.includes("add") || act.includes("activate")) {
+    return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20";
   }
   if (act.includes("update") || act.includes("edit") || act.includes("modify")) {
     return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20";
@@ -29,6 +34,15 @@ export function AuditLogTable({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Filters the 30 rows already on this page instantly; the entity/action
+  // dropdowns and pagination still query the server.
+  const [query, setQuery] = useState("");
+  const visible = useMemo(
+    () => logs.filter((log) => matches(query, log.user?.email, log.action.replace(/_/g, " "), log.entityType, log.entityId, JSON.stringify(log.details ?? ""))),
+    [logs, query]
+  );
+  const noMatches = Boolean(query) && logs.length > 0 && visible.length === 0;
 
   function updateFilter(key, value) {
     const params = new URLSearchParams(searchParams.toString());
@@ -47,7 +61,11 @@ export function AuditLogTable({
   return (
     <div className="space-y-4">
       {/* Responsive Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex items-center gap-3 w-full sm:max-w-xs">
+          <SearchInput value={query} onValueChange={setQuery} placeholder="Search this page" />
+          <SearchCount shown={visible.length} total={logs.length} query={query} />
+        </div>
         <div className="w-full sm:w-52">
           <Select value={activeEntityType || "all"} onValueChange={(v) => updateFilter("entityType", v === "all" ? "" : v)}>
             <SelectTrigger className="w-full min-h-[44px] md:min-h-[38px] bg-card">
@@ -78,15 +96,17 @@ export function AuditLogTable({
       </div>
 
       {/* Mobile Card View (< md: 768px) */}
-      <div className="md:hidden space-y-3">
-        {logs.map((log) => (
+      {noMatches && <NoMatches query={query} onClear={() => setQuery("")} />}
+
+      <div className={cn("md:hidden space-y-3", noMatches && "hidden")}>
+        {visible.map((log) => (
           <div key={log.id} className="border border-border/60 rounded-xl p-4 bg-card space-y-2.5 shadow-xs">
             <div className="flex items-center justify-between gap-2 border-b pb-2">
               <span className={`text-xs font-semibold capitalize px-2 py-0.5 rounded-full ${getActionBadgeStyle(log.action)}`}>
                 {actionLabel(log.action)}
               </span>
               <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {log.createdAt.toLocaleString()}
+                {log.createdAtLabel}
               </span>
             </div>
             <div className="space-y-1 text-xs">
@@ -120,7 +140,7 @@ export function AuditLogTable({
       </div>
 
       {/* Desktop & Tablet Table View (>= md: 768px) */}
-      <div className="hidden md:block rounded-xl border border-border/60 overflow-hidden bg-card shadow-xs">
+      <div className={cn("hidden md:block rounded-xl border border-border/60 overflow-hidden bg-card shadow-xs", noMatches && "md:hidden")}>
         <Table className="min-w-[680px] w-full">
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -132,10 +152,10 @@ export function AuditLogTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {logs.map((log) => (
+            {visible.map((log) => (
               <TableRow key={log.id} className="hover:bg-muted/30 transition-colors">
                 <TableCell className="whitespace-nowrap text-xs text-muted-foreground font-mono">
-                  {log.createdAt.toLocaleString()}
+                  {log.createdAtLabel}
                 </TableCell>
                 <TableCell className="text-sm font-medium text-foreground">{log.user.email}</TableCell>
                 <TableCell>

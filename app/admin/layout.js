@@ -11,13 +11,17 @@ export default async function AdminLayout({ children }) {
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row w-full overflow-x-hidden">
-      <AdminSidebar />
+      <div className="contents print:hidden">
+        <AdminSidebar />
+      </div>
       <div className="flex-1 min-w-0 w-full overflow-x-hidden flex flex-col">
-        <TopBar
-          title="Admin Panel"
-          userName={session.user.email?.split("@")[0] || "Admin"}
-          userRole="admin"
-        />
+        <div className="contents print:hidden">
+          <TopBar
+            title="Admin Panel"
+            userName={session.user.email?.split("@")[0] || "Admin"}
+            userRole="admin"
+          />
+        </div>
         <main className="flex-1 min-w-0 w-full overflow-x-hidden">{children}</main>
       </div>
     </div>

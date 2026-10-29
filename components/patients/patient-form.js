@@ -8,9 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CnicInput, EmailInput, NameInput, PhoneInput } from "@/components/ui/form-inputs";
+import { BLOOD_GROUPS, formatPhoneDisplay } from "@/lib/sanitize";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KeyRound, User, Phone, ShieldAlert, HeartPulse, CheckCircle2 } from "lucide-react";
+
+const GENDER_LABELS = { male: "Male", female: "Female", other: "Other" };
+const BLOOD_GROUP_LABELS = { "": "Not known", ...Object.fromEntries(BLOOD_GROUPS.map((g) => [g, g])) };
 
 export function PatientForm({ redirectBase = "/doctor/patients", mode = "create", patientId, initialValues = {} }) {
   const router = useRouter();
@@ -27,27 +32,31 @@ export function PatientForm({ redirectBase = "/doctor/patients", mode = "create"
 
     const formData = new FormData(e.target);
 
-    if (mode === "edit") {
-      const res = await updatePatient(patientId, formData);
+    try {
+      if (mode === "edit") {
+        const res = await updatePatient(patientId, formData);
+        if (res?.error) {
+          setError(res.error);
+          setLoading(false);
+          return;
+        }
+        // Stay in the loading state while navigating, so the form can't be submitted twice.
+        router.push(`${redirectBase}/${patientId}`);
+        return;
+      }
+
+      const res = await createPatient(formData);
       setLoading(false);
       if (res?.error) {
         setError(res.error);
+        if (res.existingPatientId) setExistingPatientId(res.existingPatientId);
         return;
       }
-      router.push(`${redirectBase}/${patientId}`);
-      return;
+      setResult(res);
+    } catch {
+      setError("Couldn't reach the server. Check your connection and try again.");
+      setLoading(false);
     }
-
-    const res = await createPatient(formData);
-    setLoading(false);
-
-    if (res?.error) {
-      setError(res.error);
-      if (res.existingPatientId) setExistingPatientId(res.existingPatientId);
-      return;
-    }
-
-    setResult(res);
   }
 
   if (result) {
@@ -68,7 +77,7 @@ export function PatientForm({ redirectBase = "/doctor/patients", mode = "create"
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm pt-2">
               <div className="p-3.5 bg-card rounded-xl border border-border/60 shadow-xs">
                 <p className="text-xs text-muted-foreground uppercase font-semibold">Username (Phone)</p>
-                <p className="font-mono text-base font-bold mt-1 text-foreground">{result.credentials.username}</p>
+                <p className="font-mono text-base font-bold mt-1 text-foreground">{formatPhoneDisplay(result.credentials.username)}</p>
               </div>
               <div className="p-3.5 bg-card rounded-xl border border-border/60 shadow-xs">
                 <p className="text-xs text-muted-foreground uppercase font-semibold">Temporary Password</p>
@@ -97,17 +106,17 @@ export function PatientForm({ redirectBase = "/doctor/patients", mode = "create"
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-4">
           <div className="space-y-1.5 col-span-1 sm:col-span-2">
             <Label htmlFor="fullName" className="text-xs font-semibold">Full Legal Name *</Label>
-            <Input id="fullName" name="fullName" placeholder="e.g., Muhammad Ali" defaultValue={initialValues.fullName || ""} required className="min-h-[44px] md:min-h-[38px]" />
+            <NameInput id="fullName" name="fullName" placeholder="e.g., Muhammad Ali" defaultValue={initialValues.fullName || ""} required className="min-h-[44px] md:min-h-[38px]" />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="fatherHusbandName" className="text-xs font-semibold">Father / Husband Name</Label>
-            <Input id="fatherHusbandName" name="fatherHusbandName" defaultValue={initialValues.fatherHusbandName || ""} className="min-h-[44px] md:min-h-[38px]" />
+            <NameInput id="fatherHusbandName" name="fatherHusbandName" defaultValue={initialValues.fatherHusbandName || ""} className="min-h-[44px] md:min-h-[38px]" />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="gender" className="text-xs font-semibold">Gender *</Label>
-            <Select name="gender" defaultValue={initialValues.gender || undefined} required>
+            <Select name="gender" defaultValue={initialValues.gender || undefined} items={GENDER_LABELS} required>
               <SelectTrigger id="gender" className="w-full min-h-[44px] md:min-h-[38px]"><SelectValue placeholder="Select gender" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="male">Male</SelectItem>
@@ -123,6 +132,8 @@ export function PatientForm({ redirectBase = "/doctor/patients", mode = "create"
               id="dateOfBirth"
               name="dateOfBirth"
               type="date"
+              min="1900-01-01"
+              max={new Date().toISOString().slice(0, 10)}
               defaultValue={initialValues.dateOfBirth ? new Date(initialValues.dateOfBirth).toISOString().slice(0, 10) : ""}
               className="min-h-[44px] md:min-h-[38px]"
             />
@@ -130,12 +141,20 @@ export function PatientForm({ redirectBase = "/doctor/patients", mode = "create"
 
           <div className="space-y-1.5">
             <Label htmlFor="age" className="text-xs font-semibold">Age (years)</Label>
-            <Input id="age" name="age" type="number" min="0" placeholder="e.g., 34" defaultValue={initialValues.age ?? ""} className="min-h-[44px] md:min-h-[38px]" />
+            <Input id="age" name="age" type="number" inputMode="numeric" min="0" max="130" step="1" placeholder="e.g., 34" defaultValue={initialValues.age ?? ""} className="min-h-[44px] md:min-h-[38px]" />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="bloodGroup" className="text-xs font-semibold">Blood Group</Label>
-            <Input id="bloodGroup" name="bloodGroup" placeholder="e.g., O+, A-, B+" defaultValue={initialValues.bloodGroup || ""} className="min-h-[44px] md:min-h-[38px]" />
+            <Select name="bloodGroup" defaultValue={initialValues.bloodGroup || ""} items={BLOOD_GROUP_LABELS}>
+              <SelectTrigger id="bloodGroup" className="w-full min-h-[44px] md:min-h-[38px]"><SelectValue placeholder="Select blood group" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Not known</SelectItem>
+                {BLOOD_GROUPS.map((g) => (
+                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -151,39 +170,32 @@ export function PatientForm({ redirectBase = "/doctor/patients", mode = "create"
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-4">
           <div className="space-y-1.5">
             <Label htmlFor="phone" className="text-xs font-semibold">Phone Number (Login Username) *</Label>
-            {mode === "edit" ? (
-              <>
-                <Input value={initialValues.phone || ""} disabled className="min-h-[44px] md:min-h-[38px]" />
-                <p className="text-[11px] text-muted-foreground">
-                  Phone cannot be changed as it serves as the account login username.
-                </p>
-              </>
-            ) : (
-              <>
-                <Input id="phone" name="phone" placeholder="03001234567" required className="min-h-[44px] md:min-h-[38px]" />
-                <p className="text-[11px] text-muted-foreground">Doubles as this patient&apos;s portal login username.</p>
-              </>
-            )}
+            <PhoneInput id="phone" name="phone" defaultValue={initialValues.phone || ""} required className="min-h-[44px] md:min-h-[38px]" />
+            <p className="text-[11px] text-muted-foreground">
+              {mode === "edit"
+                ? "This is also the patient's login. Changing it changes what they sign in with."
+                : "Doubles as this patient's portal login username."}
+            </p>
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="email" className="text-xs font-semibold">Email Address</Label>
-            <Input id="email" name="email" type="email" placeholder="patient@example.com" defaultValue={initialValues.email || ""} className="min-h-[44px] md:min-h-[38px]" />
+            <EmailInput id="email" name="email" placeholder="patient@example.com" defaultValue={initialValues.email || ""} className="min-h-[44px] md:min-h-[38px]" />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="cnic" className="text-xs font-semibold">CNIC / National ID</Label>
-            <Input id="cnic" name="cnic" placeholder="xxxxx-xxxxxxx-x" defaultValue={initialValues.cnic || ""} className="min-h-[44px] md:min-h-[38px]" />
+            <CnicInput id="cnic" name="cnic" defaultValue={initialValues.cnic || ""} className="min-h-[44px] md:min-h-[38px]" />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="emergencyContact" className="text-xs font-semibold">Emergency Contact Phone</Label>
-            <Input id="emergencyContact" name="emergencyContact" placeholder="03007654321" defaultValue={initialValues.emergencyContact || ""} className="min-h-[44px] md:min-h-[38px]" />
+            <PhoneInput id="emergencyContact" name="emergencyContact" placeholder="0300-7654321" defaultValue={initialValues.emergencyContact || ""} className="min-h-[44px] md:min-h-[38px]" />
           </div>
 
           <div className="space-y-1.5 col-span-1 sm:col-span-2">
             <Label htmlFor="address" className="text-xs font-semibold">Residential Address</Label>
-            <Input id="address" name="address" placeholder="House #, Street, City" defaultValue={initialValues.address || ""} className="min-h-[44px] md:min-h-[38px]" />
+            <Input id="address" name="address" maxLength={300} placeholder="House #, Street, City" defaultValue={initialValues.address || ""} className="min-h-[44px] md:min-h-[38px]" />
           </div>
         </CardContent>
       </Card>
@@ -200,29 +212,29 @@ export function PatientForm({ redirectBase = "/doctor/patients", mode = "create"
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="heightCm" className="text-xs font-semibold">Baseline Height (cm)</Label>
-              <Input id="heightCm" name="heightCm" type="number" step="0.1" defaultValue={initialValues.heightCm ?? ""} className="min-h-[44px] md:min-h-[38px]" />
+              <Input id="heightCm" name="heightCm" type="number" inputMode="decimal" min="20" max="260" step="0.1" defaultValue={initialValues.heightCm ?? ""} className="min-h-[44px] md:min-h-[38px]" />
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="weightKg" className="text-xs font-semibold">Baseline Weight (kg)</Label>
-              <Input id="weightKg" name="weightKg" type="number" step="0.1" defaultValue={initialValues.weightKg ?? ""} className="min-h-[44px] md:min-h-[38px]" />
+              <Input id="weightKg" name="weightKg" type="number" inputMode="decimal" min="0.5" max="400" step="0.1" defaultValue={initialValues.weightKg ?? ""} className="min-h-[44px] md:min-h-[38px]" />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="allergies" className="text-xs font-semibold">Known Drug Allergies</Label>
-            <Textarea id="allergies" name="allergies" rows={2} placeholder="Penicillin, NSAIDs, Sulfa drugs (or 'None')..." defaultValue={initialValues.allergies || ""} />
+            <Textarea id="allergies" name="allergies" rows={2} maxLength={1000} placeholder="Penicillin, NSAIDs, Sulfa drugs (or 'None')..." defaultValue={initialValues.allergies || ""} />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="existingDiseases" className="text-xs font-semibold">Existing Chronic Conditions</Label>
-            <Textarea id="existingDiseases" name="existingDiseases" rows={2} placeholder="Hypertension, Type 2 Diabetes, Asthma..." defaultValue={initialValues.existingDiseases || ""} />
+            <Textarea id="existingDiseases" name="existingDiseases" rows={2} maxLength={1000} placeholder="Hypertension, Type 2 Diabetes, Asthma..." defaultValue={initialValues.existingDiseases || ""} />
           </div>
         </CardContent>
       </Card>
 
       {error && (
-        <div className="text-sm font-medium text-destructive space-y-1 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+        <div role="alert" className="text-sm font-medium text-destructive space-y-1 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
           <p>{error}</p>
           {existingPatientId && (
             <Link href={`${redirectBase}/${existingPatientId}`} className="underline font-semibold block text-primary">

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
+import { getCurrentDoctor } from "@/lib/auth-guards";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,17 +12,13 @@ import {
   UserPlus,
   Plus,
 } from "lucide-react";
-
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+import { startOfClinicDay } from "@/lib/datetime";
 
 export default async function DoctorDashboard() {
-  const session = await auth();
-  const doctor = await prisma.doctor.findUnique({ where: { userId: session.user.id } });
-  const today = startOfToday();
+  const doctor = await getCurrentDoctor();
+  if (!doctor) return null; // layout shows the "profile not set up" message
+  const today = startOfClinicDay();
+  const tomorrow = startOfClinicDay(new Date(), 1);
 
   const [
     totalPatients,
@@ -33,7 +29,7 @@ export default async function DoctorDashboard() {
   ] = await Promise.all([
     prisma.prescription.groupBy({ by: ["patientId"], where: { doctorId: doctor.id } }).then((r) => r.length),
     prisma.appointment.count({
-      where: { doctorId: doctor.id, scheduledAt: { gte: today } },
+      where: { doctorId: doctor.id, scheduledAt: { gte: today, lt: tomorrow } },
     }),
     prisma.prescription.count({ where: { doctorId: doctor.id } }),
     prisma.prescription.count({ where: { doctorId: doctor.id, createdAt: { gte: today } } }),
@@ -93,18 +89,14 @@ export default async function DoctorDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/doctor/patients/new">
-            <Button variant="outline" className="min-h-[40px] text-xs sm:text-sm">
+          <Button variant="outline" className="min-h-[40px] text-xs sm:text-sm" nativeButton={false} render={<Link href="/doctor/patients/new" />}>
               <UserPlus className="mr-2 h-4 w-4" strokeWidth={1.75} />
               Register Patient
             </Button>
-          </Link>
-          <Link href="/doctor/patients">
-            <Button className="min-h-[40px] text-xs sm:text-sm shadow-xs">
+          <Button className="min-h-[40px] text-xs sm:text-sm shadow-xs" nativeButton={false} render={<Link href="/doctor/patients" />}>
               <Plus className="mr-2 h-4 w-4" strokeWidth={1.75} />
               New Prescription
             </Button>
-          </Link>
         </div>
       </div>
 
