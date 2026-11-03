@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Instrument_Serif } from "next/font/google";
 import {
   ArrowUpRight,
   CalendarClock,
@@ -8,7 +7,6 @@ import {
   LayoutDashboard,
   LogIn,
   ScrollText,
-  ShieldCheck,
   Stethoscope,
   Users,
   FileBarChart,
@@ -20,12 +18,13 @@ import { GoBackButton, VerifyCodeForm } from "@/components/not-found-actions";
 import { ROLE_HOME } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
-const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["normal", "italic"] });
-
 export const metadata = { title: "Page not found" };
 
-// Tone-on-tone background mark: barely darker than the paper background.
-const TONE = { ink: "#e6eee9", mint: "#e9f2ed" };
+// Tone-on-tone background mark: barely darker than the page, in either theme.
+const TONE = {
+  ink: "color-mix(in oklch, var(--foreground) 6%, var(--background))",
+  mint: "color-mix(in oklch, var(--primary) 7%, var(--background))",
+};
 
 // Useful places to go next, per role.
 const QUICK_LINKS = {
@@ -39,7 +38,7 @@ const QUICK_LINKS = {
     { href: "/receptionist/patients", icon: Users, title: "Patients", text: "Register or find a patient" },
   ],
   admin: [
-    { href: "/admin/doctors", icon: Stethoscope, title: "Doctors", text: "Manage doctor accounts" },
+    { href: "/admin/doctors", icon: Stethoscope, title: "Doctors", text: "Doctor accounts and access" },
     { href: "/admin/reports", icon: FileBarChart, title: "Reports", text: "Generate PDF and CSV reports" },
     { href: "/admin/audit-logs", icon: ScrollText, title: "Audit logs", text: "Review recent activity" },
   ],
@@ -70,22 +69,15 @@ export default async function NotFound() {
       <main className="relative flex-1 flex items-center px-6 py-12 md:px-12">
         <div className="mx-auto w-full max-w-5xl grid gap-12 md:grid-cols-[1.15fr_1fr] md:items-center">
           <section className="animate-in fade-in-0 slide-in-from-bottom-1 duration-500">
-            <p className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs font-medium text-muted-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
-              Error 404
-            </p>
-            <h1 className={cn(serif.className, "mt-6 text-[3.25rem] leading-[1] tracking-[-0.015em] md:text-[4.5rem]")}>
-              This page has
-              <br />
-              <span className="italic" style={{ color: "var(--color-primary)" }}>
-                gone missing.
-              </span>
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Error 404</p>
+            <h1 className="mt-4 font-display text-5xl leading-none tracking-[-0.015em] md:text-7xl">
+              Page <span className="italic text-primary">not found.</span>
             </h1>
-            <p className="mt-5 max-w-md text-[15px] leading-relaxed text-muted-foreground">
+            <p className="mt-5 max-w-md text-base leading-relaxed text-muted-foreground">
               The link may be old or mistyped, the record may have been removed, or you may not have access to it.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href={home} className={cn(buttonVariants(), "h-11 rounded-lg px-5")}>
+              <Link href={home} className={cn(buttonVariants({ size: "touch" }), "md:h-11 md:px-5")}>
                 {role ? "Back to dashboard" : "Sign in"}
               </Link>
               <GoBackButton />
@@ -93,20 +85,16 @@ export default async function NotFound() {
           </section>
 
           <section className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-700" aria-label="Where to go next">
-            <div className="rounded-2xl border border-border bg-card p-2 shadow-[0_1px_2px_rgba(16,24,20,0.04)]">
-              <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {role ? "Where you might want to go" : "Get started"}
-              </p>
+            <div className="rounded-lg border border-border bg-card p-2">
+              <p className="px-3 pt-2 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">Go to</p>
               <ul>
                 {links.map(({ href, icon: Icon, title, text }) => (
                   <li key={href}>
                     <Link
                       href={href}
-                      className="group flex items-center gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-muted focus-visible:bg-muted outline-none"
+                      className="group flex items-center gap-3 rounded-md px-3 py-3 transition-colors hover:bg-muted focus-visible:bg-muted outline-none"
                     >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden="true" />
-                      </span>
+                      <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-medium">{title}</span>
                         <span className="block truncate text-xs text-muted-foreground">{text}</span>
@@ -121,17 +109,12 @@ export default async function NotFound() {
               </ul>
             </div>
 
-            <div className="rounded-2xl border border-border bg-card p-5 shadow-[0_1px_2px_rgba(16,24,20,0.04)]">
-              <div className="mb-3 flex items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <ShieldCheck className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden="true" />
-                </span>
-                <div>
-                  <h2 className="text-sm font-medium">Checking a prescription?</h2>
-                  <p className="text-xs text-muted-foreground">
-                    Enter the code printed on it, or scan its QR code for full verification.
-                  </p>
-                </div>
+            <div className="rounded-lg border border-border bg-card p-5">
+              <div className="mb-3">
+                <h2 className="text-sm font-medium">Checking a prescription?</h2>
+                <p className="text-xs text-muted-foreground">
+                  Enter the code printed on it, or scan its QR code.
+                </p>
               </div>
               <VerifyCodeForm />
             </div>

@@ -8,6 +8,6 @@ const links = [
   { href: "/receptionist/patients", label: "Patients", icon: Users },
 ];
 
-export function ReceptionistSidebar() {
-  return <PortalSidebar links={links} subtitle="Reception" breakpoint="md" />;
+export function ReceptionistSidebar({ user }) {
+  return <PortalSidebar links={links} subtitle="Reception" user={user} />;
 }

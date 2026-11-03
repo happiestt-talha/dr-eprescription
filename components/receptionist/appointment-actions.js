@@ -7,24 +7,28 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Pencil, Calendar } from "lucide-react";
+import { Field } from "@/components/ui/form-layout";
+import { Form, FormStatus, SubmitButton } from "@/components/ui/form";
+import { DateTimePicker } from "@/components/ui/date-picker";
+import { Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toClinicInputValue } from "@/lib/datetime";
 
 const statuses = [
-  { value: "pending", label: "Pending", color: "text-amber-600" },
-  { value: "confirmed", label: "Confirmed", color: "text-blue-600" },
-  { value: "completed", label: "Completed", color: "text-emerald-600" },
-  { value: "cancelled", label: "Cancelled", color: "text-rose-600" },
+  { value: "pending", label: "Pending", color: "text-warning-strong" },
+  { value: "confirmed", label: "Confirmed", color: "text-info-strong" },
+  { value: "completed", label: "Completed", color: "text-success-strong" },
+  { value: "cancelled", label: "Cancelled", color: "text-destructive-strong" },
 ];
 
-export function AppointmentActions({ appointment, doctors }) {
+/**
+ * Status select + reschedule dialog for one appointment.
+ * `appointment` is { id, status, doctorId, scheduledAtInput } (from
+ * lib/lists.js appointmentRows); `doctorItems` is built once per page.
+ */
+export function AppointmentActions({ appointment, doctorItems }) {
   const router = useRouter();
   const [status, setStatus] = useState(appointment.status);
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState("");
   const [statusError, setStatusError] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -44,28 +48,17 @@ export function AppointmentActions({ appointment, doctors }) {
     });
   }
 
-  async function handleReschedule(e) {
-    e.preventDefault();
-    setError("");
-    const formData = new FormData(e.target);
-
-    startTransition(async () => {
-      try {
-        const res = await rescheduleAppointment(appointment.id, formData);
-        if (res?.error) {
-          setError(res.error);
-          return;
-        }
-        setOpen(false);
-        router.refresh();
-      } catch {
-        setError("Couldn't reach the server. Please try again.");
-      }
-    });
+  // Errors live in the dialog's <Form>, so closing the dialog clears them.
+  async function handleReschedule(formData) {
+    const res = await rescheduleAppointment(appointment.id, formData);
+    if (!res?.error) {
+      setOpen(false);
+      router.refresh();
+    }
+    return res;
   }
 
   const statusLabels = Object.fromEntries(statuses.map((s) => [s.value, s.label]));
-  const doctorItems = doctors.map((d) => ({ value: d.id, label: `Dr. ${d.fullName}`, detail: d.specialization || "" }));
 
   return (
     <div className="flex items-center gap-2">
@@ -93,13 +86,12 @@ export function AppointmentActions({ appointment, doctors }) {
           <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
         </DialogTrigger>
         <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md rounded-xl">
-          <form onSubmit={handleReschedule} className="space-y-4">
+          <Form onSubmit={handleReschedule} keepPendingOnSuccess={false} className="space-y-4">
             <DialogHeader>
-              <DialogTitle className="text-lg font-bold">Reschedule Appointment</DialogTitle>
+              <DialogTitle className="text-lg font-semibold">Reschedule appointment</DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="doctorId" className="text-xs font-semibold">Doctor</Label>
+            <Field label="Doctor" htmlFor="doctorId" required>
               <Combobox
                 id="doctorId"
                 name="doctorId"
@@ -107,31 +99,29 @@ export function AppointmentActions({ appointment, doctors }) {
                 defaultValue={appointment.doctorId}
                 placeholder="Search doctor"
                 emptyText="No doctors match"
+                label="Doctor"
+                required
               />
-            </div>
+            </Field>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="scheduledAt" className="text-xs font-semibold">Date & Time</Label>
-              <Input
-                id="scheduledAt"
-                name="scheduledAt"
-                type="datetime-local"
-                defaultValue={toClinicInputValue(appointment.scheduledAt)}
-                className="w-full min-h-[44px] md:min-h-[38px]"
-              />
-            </div>
+            <Field label="Date & time" htmlFor="scheduledAt" required>
+              <DateTimePicker id="scheduledAt" name="scheduledAt" defaultValue={appointment.scheduledAtInput} required />
+            </Field>
 
-            {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}
+            <FormStatus variant="dialog" />
 
             <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
-              <Button type="submit" disabled={isPending} className="w-full sm:w-auto min-h-[44px]">
-                {isPending ? "Saving..." : "Save Changes"}
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} className="h-11 w-full px-5 sm:w-auto">
+                Cancel
               </Button>
+              <SubmitButton pendingText="Saving…" className="h-11 w-full px-6 sm:w-auto">
+                Save changes
+              </SubmitButton>
             </DialogFooter>
-          </form>
+          </Form>
         </DialogContent>
       </Dialog>
-      {statusError && <p className="text-xs font-medium text-destructive">{statusError}</p>}
+      {statusError && <p role="alert" className="text-xs font-medium text-destructive">{statusError}</p>}
     </div>
   );
 }

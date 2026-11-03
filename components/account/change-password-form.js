@@ -4,56 +4,18 @@ import Link from "next/link";
 import { useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Check, KeyRound, Loader2 } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { buttonVariants } from "@/components/ui/button";
+import { Form, FormStatus, SubmitButton } from "@/components/ui/form";
+import { Field } from "@/components/ui/form-layout";
+import { PasswordInput } from "@/components/ui/form-inputs";
 import { changePassword } from "@/lib/actions/account";
 import { cn } from "@/lib/utils";
-
-const fieldClass =
-  "h-11 rounded-lg bg-card px-3.5 pr-16 text-[15px] md:text-sm border-border focus-visible:ring-primary/25 focus-visible:border-primary";
-
-function PasswordField({ id, label, autoComplete, value, onChange, hint, show, onToggle }) {
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={id} className="text-[13px] font-medium">
-        {label}
-      </Label>
-      <div className="relative">
-        <Input
-          id={id}
-          name={id}
-          type={show ? "text" : "password"}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          autoComplete={autoComplete}
-          maxLength={200}
-          required
-          aria-describedby={hint ? `${id}-hint` : undefined}
-          className={fieldClass}
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          aria-label={show ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
-        >
-          {show ? "Hide" : "Show"}
-        </button>
-      </div>
-      {hint}
-    </div>
-  );
-}
 
 export function ChangePasswordForm({ required, home }) {
   const { update } = useSession();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [show, setShow] = useState({});
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
   const checks = [
@@ -61,38 +23,25 @@ export function ChangePasswordForm({ required, home }) {
     { ok: next.length > 0 && next !== current, text: "Different from your current password" },
     { ok: next.length > 0 && next === confirm, text: "Both new passwords match" },
   ];
-  const ready = current && checks.every((c) => c.ok);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!ready || loading) return;
-    setError("");
-    setLoading(true);
-    try {
-      const res = await changePassword(new FormData(e.target));
-      if (res?.error) {
-        setError(res.error);
-        setLoading(false);
-        return;
-      }
-      setDone(true);
-      // Refresh the session so the "must change" flag is cleared right away.
-      // update() needs an argument: without one NextAuth only re-reads the
-      // session (GET) and the jwt callback never sees trigger "update".
-      await update({ passwordChanged: true });
-      // A full page load, not router.push: the client router may still hold
-      // the redirect it cached while the password change was pending.
-      window.location.assign(home);
-    } catch {
-      setError("Couldn't reach the server. Please try again.");
-      setLoading(false);
-    }
+  // Runs once every field passes its inline check; server errors (wrong
+  // current password, contains your login) land on the matching field.
+  async function handleSubmit(formData) {
+    const res = await changePassword(formData);
+    if (res?.error) return res;
+    setDone(true);
+    // Refresh the session so the "must change" flag is cleared right away.
+    // update() needs an argument: without one NextAuth only re-reads the
+    // session (GET) and the jwt callback never sees trigger "update".
+    await update({ passwordChanged: true });
+    // A full page load, not router.push: the client router may still hold
+    // the redirect it cached while the password change was pending.
+    window.location.assign(home);
+    return res;
   }
 
-  const toggle = (field) => setShow((s) => ({ ...s, [field]: !s[field] }));
-
   return (
-    <div className="w-full max-w-[400px] rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-[0_1px_2px_rgba(16,24,20,0.04)] animate-in fade-in-0 slide-in-from-bottom-1 duration-500">
+    <div className="w-full max-w-[400px] rounded-lg border border-border bg-card p-6 sm:p-8">
       <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
         <KeyRound className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
       </span>
@@ -105,34 +54,33 @@ export function ChangePasswordForm({ required, home }) {
           : "Use a password you don't use anywhere else."}
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
-        <PasswordField
-          id="currentPassword"
-          label={required ? "Temporary password" : "Current password"}
-          autoComplete="current-password"
-          value={current}
-          onChange={setCurrent}
-          show={show.currentPassword}
-          onToggle={() => toggle("currentPassword")}
-        />
-        <PasswordField
-          id="newPassword"
-          label="New password"
-          autoComplete="new-password"
-          value={next}
-          onChange={setNext}
-          show={show.newPassword}
-          onToggle={() => toggle("newPassword")}
-        />
-        <PasswordField
-          id="confirmPassword"
-          label="Confirm new password"
-          autoComplete="new-password"
-          value={confirm}
-          onChange={setConfirm}
-          show={show.confirmPassword}
-          onToggle={() => toggle("confirmPassword")}
-        />
+      <Form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <Field label={required ? "Temporary password" : "Current password"} htmlFor="currentPassword">
+          <PasswordInput id="currentPassword" name="currentPassword" label="Current password" requiredOnly autoComplete="current-password" onValueChange={setCurrent} fieldSize="lg" />
+        </Field>
+        <Field label="New password" htmlFor="newPassword">
+          <PasswordInput
+            id="newPassword"
+            name="newPassword"
+            label="New password"
+            autoComplete="new-password"
+            onValueChange={setNext}
+            validate={(v) => (v === current ? "Choose a password different from your current one" : "")}
+            fieldSize="lg"
+          />
+        </Field>
+        <Field label="Confirm new password" htmlFor="confirmPassword">
+          <PasswordInput
+            id="confirmPassword"
+            name="confirmPassword"
+            label="Confirm new password"
+            requiredOnly
+            autoComplete="new-password"
+            onValueChange={setConfirm}
+            validate={(v) => (v !== next ? "The new passwords don't match" : "")}
+            fieldSize="lg"
+          />
+        </Field>
 
         <ul className="space-y-1.5 pt-1" aria-label="Password requirements">
           {checks.map((c) => (
@@ -152,23 +100,20 @@ export function ChangePasswordForm({ required, home }) {
           ))}
         </ul>
 
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
+        <FormStatus variant="dialog" />
 
-        <Button type="submit" disabled={!ready || loading || done} className="w-full h-11 rounded-lg text-sm font-semibold">
-          {loading ? (
+        <SubmitButton
+          disabled={done}
+          pendingText={
             <>
               <Loader2 className="h-4 w-4 animate-spin mr-2" aria-hidden="true" />
-              Saving
+              Saving…
             </>
-          ) : (
-            "Save new password"
-          )}
-        </Button>
-      </form>
+          }
+          className="w-full h-11 rounded-lg text-sm font-semibold">
+          Save new password
+        </SubmitButton>
+      </Form>
 
       <div className="mt-5 flex items-center justify-between text-xs">
         {required ? (

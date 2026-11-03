@@ -13,6 +13,7 @@ Docs (read the relevant one before working in an area):
 
 ## Commands
 
+- Use **npm**, not pnpm (`packageManager` pins it). Swapping managers rewrites `node_modules` under a running dev server and causes an endless reload loop
 - `npm run dev`, `npm run lint`, `npm run build`
 - `npx prisma generate` (also runs on postinstall)
 - `npx prisma db seed`: **wipes every table**. It refuses unless `ALLOW_SEED_WIPE=true`. Never set that against the live database (`.env` currently points at the live one)
@@ -24,10 +25,12 @@ Docs (read the relevant one before working in an area):
 - Reads: query Prisma directly in async server pages. Writes: `"use server"` actions in `lib/actions/<domain>.js`. Each action starts with `requireRole(...)` from `lib/auth-guards.js` (never hand-roll a guard), then validation returning `{ error }`, then the write (a `$transaction` when touching multiple rows), then **an `auditLog.create`**, then `revalidatePath`, and returns `{ success, ... }`.
 - Doctor pages get the doctor via `getCurrentDoctor()` and must scope prescription queries with `doctorId: doctor.id`.
 - Verification links come from `verifyPath` / `buildVerifyUrl` in `lib/verify.js` (HMAC-signed). Never build `/verify/...` URLs by hand. Patient/prescription codes come from `lib/codes.js`.
-- Server actions wrap their body in `safely()` and validate input with `lib/validate.js`; they return `{ error }` and never throw. Client handlers still use try/catch and keep `loading` on while navigating (no double-submit).
+- Validation: rules live only in `lib/rules.js` (pure, shared by browser and server). Actions read input with `createReader(formData)` from `lib/validate.js` and call `r.done()`, so every field's error comes back at once as `fieldErrors`; duplicates and other DB-backed checks throw `FieldErrors({ field: msg })`. Actions wrap their body in `safely()`, return `{ error }` and never throw. Route handlers use `apiRoute()` from `lib/api.js`.
+- Forms: wrap every form in `<Form>` (`components/ui/form.jsx`) and every control in `<Field name=…>`; use `SubmitButton`/`FormStatus` instead of hand-rolled loading/error state. All controls must register via `useFormField` (the ones in `components/ui/` already do). See `docs/architecture.md#validation-one-set-of-rules-inline-errors-everywhere`.
+- Layout: wrap form pages in `FormPage` and group fields with `FormSection`/`Field` (`components/ui/form-layout.jsx`). Date inputs use `DatePicker`/`DateTimePicker` (`components/ui/date-picker.jsx`), never native `type="date"`/`datetime-local`. Patient age is derived from the date of birth with `formatAge`/`ageFromDob`; never read `patient.age` for display.
 - Dates: always use `lib/datetime.js` (clinic timezone). Never `toLocaleString()` or `new Date("YYYY-MM-DDTHH:mm")` directly. Format on the server and pass strings to client components.
 - Selects: pass an `items` value-to-label map to every base-ui `<Select>`, or it displays the raw value. For long lists (medicines, tests, doctors) use the searchable `Combobox` (`components/ui/combobox.jsx`).
-- Search: filter data the page already loaded in the browser (`SearchInput` + `lib/search.js`, or `SearchableSection` for server-rendered lists); don't add server round trips for it. Only patient lookup hits the database (see `docs/architecture.md#search`).
+- Lists: load rows with a loader in `lib/lists.js` (lean `select`, server-formatted strings, `searchText`, whole list with `count`; never a silent `take`, never `include: true`) and render them with `DataList` through a wrapper in `components/lists/`. Search, filters and pagination run in the browser; only the audit log pages on the server. See `docs/architecture.md#lists-everything-shown-searched-and-paged-in-the-browser`.
 - Never pass Prisma rows that include `user` to client components; `select` only the fields you need.
 - `params` and `searchParams` are Promises; always `await` them, and use `firstParam()` (from `@/lib/utils`) for search params, since they can be arrays. Interception lives in `proxy.js`, not `middleware.js`.
 - Wrap Prisma `Decimal` data (patient height/weight, vitals) in `serialize()` from `@/lib/utils` before passing it to client components. Never pass `User` rows (they include `passwordHash`) to client components.
@@ -36,6 +39,7 @@ Docs (read the relevant one before working in an area):
 - Patients log in with their phone number, stored in `users.email`.
 - Finalized prescriptions are immutable; only drafts can be edited.
 - Schema changes: migrations are baselined (see `docs/database.md`). Review with `prisma migrate diff` first, deploy with `prisma migrate deploy`, and never run `migrate dev`, `db push` or `migrate reset` against production.
-- Inputs: every new field uses the sanitising inputs in `components/ui/form-inputs.jsx` (name, email, Pakistani phone, CNIC, code, BP) in the browser, and the matching `lib/validate.js` helper on the server (rules live in `lib/sanitize.js`). Phones are stored as `+923XXXXXXXXX`.
+- Inputs: every new field uses the sanitising inputs in `components/ui/form-inputs.jsx` (name, email, Pakistani phone, CNIC, code, BP) in the browser, and the matching `createReader` method on the server (validity rules in `lib/rules.js`, keystroke filters in `lib/sanitize.js`). Phones are stored as `+923XXXXXXXXX`.
+- Numbers (height, weight, vitals, age): `MeasureInput measure="…"` in the browser and `r.measure(name, { measure })` on the server, both driven by `MEASURES` in `lib/sanitize.js` (range, decimals, "double-check" band). Never use `type="number"`. Free-text clinical fields (dosage, frequency, duration, instructions) use `SuggestInput` with vocabularies from `lib/clinical-vocab.js`; long text fields can add `QuickChips`.
 - Never commit `.env` or print its values.
 - Brand: MedScript. The logo (stethoscope-S mark + path-drawn wordmark, sage palette) is defined once in `components/brand/logo-geometry.js`. Use `<Logo>`/`<LogoMark>`/`<Wordmark>` from `components/brand/logo.js` in the UI and `PdfLogoMark`/`PdfWordmark` (`lib/pdf/logo.js`) in PDFs; never use a generic icon as the brand mark. `app/icon.svg` is generated from the geometry, so regenerate it if the geometry changes (see `docs/architecture.md#brand`).

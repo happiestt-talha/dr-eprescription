@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Form, SubmitButton } from "@/components/ui/form";
+import { Field } from "@/components/ui/form-layout";
+import { MaskedInput } from "@/components/ui/form-inputs";
+import { prescriptionCode } from "@/lib/rules";
 
 /** "Go back" that falls back to home when the page was opened directly. */
 export function GoBackButton() {
@@ -25,49 +26,37 @@ export function GoBackButton() {
 /** Jump straight to a prescription's public verification page by its code. */
 export function VerifyCodeForm() {
   const router = useRouter();
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    const clean = code.trim().toUpperCase();
-    if (!/^RX-[\dA-Z-]{3,20}$/.test(clean)) {
-      setError("Enter a code like RX-00012, as printed on the prescription.");
-      return;
-    }
-    router.push(`/verify/${encodeURIComponent(clean)}`);
+  function handleSubmit(formData) {
+    const { value } = prescriptionCode(formData.get("code"));
+    router.push(`/verify/${encodeURIComponent(value)}`);
+    return { success: true };
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-2">
-      <Label htmlFor="rx-code" className="text-[13px] font-medium">
-        Prescription code
-      </Label>
-      <div className="flex gap-2">
-        <Input
-          id="rx-code"
-          value={code}
-          onChange={(e) => {
-            setCode(e.target.value);
-            setError("");
-          }}
-          placeholder="RX-00012"
-          autoComplete="off"
-          spellCheck={false}
-          aria-describedby={error ? "rx-code-error" : undefined}
-          aria-invalid={error ? true : undefined}
-          className="h-11 rounded-lg bg-card uppercase placeholder:normal-case"
-        />
-        <Button type="submit" className="h-11 rounded-lg px-4 shrink-0">
-          Verify
-          <ArrowRight className="h-4 w-4 ml-1.5" aria-hidden="true" />
-        </Button>
-      </div>
-      {error && (
-        <p id="rx-code-error" role="alert" className="text-xs text-destructive">
-          {error}
-        </p>
-      )}
-    </form>
+    <Form onSubmit={handleSubmit} className="space-y-2">
+      <Field label="Prescription code" htmlFor="rx-code" name="code">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <MaskedInput
+              id="rx-code"
+              name="code"
+              label="Prescription code"
+              required
+              rule={prescriptionCode}
+              filter={(v) => v.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 24)}
+              placeholder="RX-00012"
+              autoComplete="off"
+              spellCheck={false}
+              className="h-11 rounded-lg bg-card placeholder:normal-case"
+            />
+          </div>
+          <SubmitButton className="h-11 rounded-lg px-4 shrink-0">
+            Verify
+            <ArrowRight className="h-4 w-4 ml-1.5" aria-hidden="true" />
+          </SubmitButton>
+        </div>
+      </Field>
+    </Form>
   );
 }

@@ -2,39 +2,43 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentDoctor } from "@/lib/auth-guards";
 import { PrescriptionForm } from "@/components/prescriptions/prescription-form";
-import { firstParam, serialize } from "@/lib/utils";
+import { firstParam } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { FormPage } from "@/components/ui/form-layout";
+import { formatAge } from "@/lib/datetime";
+import { PATIENT_HEADER_SELECT, prescriptionCatalogs } from "@/lib/lists";
+import { isUuid } from "@/lib/rules";
 
 export default async function NewPrescriptionPage({ searchParams }) {
   const patientId = firstParam((await searchParams).patientId);
   if (!patientId) notFound();
 
-  const [patient, doctor, medicines, labTests] = await Promise.all([
-    prisma.patient.findUnique({ where: { id: patientId } }),
+  if (!isUuid(patientId)) notFound();
+
+  const [patient, doctor, { medicines, labTests }] = await Promise.all([
+    prisma.patient.findUnique({ where: { id: patientId }, select: PATIENT_HEADER_SELECT }),
     getCurrentDoctor(),
-    prisma.medicine.findMany({ orderBy: { name: "asc" } }),
-    prisma.labTest.findMany({ orderBy: { name: "asc" } }),
+    prescriptionCatalogs(),
   ]);
 
   if (!doctor) return null; // layout shows the "profile not set up" message
   if (!patient) notFound();
 
   return (
-    <div className="p-4 sm:p-6 max-w-3xl space-y-4 sm:space-y-6 w-full min-w-0">
+    <FormPage>
       <Breadcrumbs
         segments={[
           { label: "Patients", href: "/doctor/patients" },
           { label: patient.fullName, href: `/doctor/patients/${patient.id}` },
-          { label: "New Prescription" },
+          { label: "New prescription" },
         ]}
       />
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">New Prescription</h1>
-        <p className="text-xs sm:text-sm text-muted-foreground break-words mt-0.5">
-          {patient.fullName} · {patient.patientCode} · Dr. {doctor.fullName}
-        </p>
-      </div>
-      <PrescriptionForm patient={serialize(patient)} medicines={medicines} labTests={labTests} />
-    </div>
+      <PageHeader
+        title="New prescription"
+        description={`${patient.fullName} · ${patient.patientCode} · ${formatAge(patient)} · Dr. ${doctor.fullName}`}
+      />
+      <PrescriptionForm patient={{ id: patient.id }} medicines={medicines} labTests={labTests} />
+    </FormPage>
   );
 }

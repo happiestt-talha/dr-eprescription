@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPrescription, updatePrescription } from "@/lib/actions/prescriptions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FormActions, FormSection } from "@/components/ui/form-layout";
+import { Form, FormStatus, useFormContext } from "@/components/ui/form";
+import { LIMITS } from "@/lib/rules";
 import { Combobox } from "@/components/ui/combobox";
-import { BloodPressureInput } from "@/components/ui/form-inputs";
+import { BloodPressureInput, MeasureInput, TextArea } from "@/components/ui/form-inputs";
+import { bmi } from "@/lib/sanitize";
+import { QuickChips, SuggestInput } from "@/components/ui/suggest-input";
+import { ADVICE_CHIPS, FREQUENCIES, LAB_INSTRUCTIONS, MEDICINE_INSTRUCTIONS, suggestDosage, suggestDuration, suggestFrom } from "@/lib/clinical-vocab";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,18 +22,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, HeartPulse, Stethoscope, Pill, FlaskConical, FileText, CheckCircle } from "lucide-react";
+import { Plus, Trash2, Pill, FlaskConical, CheckCircle } from "lucide-react";
+
+const FIELD = "h-11 md:h-10";
+
+/** Amber note when weight and height together give an implausible BMI. */
+function bmiWarning(heightCm, weightKg) {
+  const value = bmi(heightCm, weightKg);
+  return value !== null && (value < 12 || value > 60) ? `BMI ${value} looks unusual for this height. Please double-check.` : "";
+}
+
 
 let rowId = 0;
 const nextId = () => `row-${++rowId}`;
 
 export function PrescriptionForm({ patient, medicines, labTests, mode = "create", prescriptionId, initialData }) {
   const router = useRouter();
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [submittingIntent, setSubmittingIntent] = useState(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const formRef = useRef(null);
 
   // Searchable pickers filter these already-loaded lists in the browser.
   const medicineItems = useMemo(
@@ -44,6 +50,8 @@ export function PrescriptionForm({ patient, medicines, labTests, mode = "create"
       })),
     [medicines]
   );
+  // Dosage suggestions follow the chosen medicine's form (tablet, syrup, …).
+  const dosageFormById = useMemo(() => new Map(medicines.map((m) => [m.id, m.dosageForm])), [medicines]);
   const labTestItems = useMemo(
     () => labTests.map((t) => ({ value: t.id, label: t.name, detail: t.category || "" })),
     [labTests]
@@ -92,293 +100,218 @@ export function PrescriptionForm({ patient, medicines, labTests, mode = "create"
     setLabTestRows((rows) => rows.filter((r) => r.id !== id));
   }
 
-  async function submit(intent) {
-    if (loading) return;
-    setError("");
-    setLoading(true);
-    setSubmittingIntent(intent);
-
-    const formData = new FormData(formRef.current);
-    formData.set("intent", intent);
+  // Runs only after every field passed its inline check. `ctx.intent` is
+  // "finalized" from the Finalise button; Enter in a field saves a draft.
+  async function handleSubmit(formData, ctx) {
+    formData.set("intent", ctx?.intent === "finalized" ? "finalized" : "draft");
     formData.set("patientId", patient.id);
-    formData.set("medicinesData", JSON.stringify(medicineRows));
-    formData.set("labTestsData", JSON.stringify(labTestRows));
-
-    try {
-      const res =
-        mode === "edit"
-          ? await updatePrescription(prescriptionId, formData)
-          : await createPrescription(formData);
-      if (res?.error) {
-        setError(res.error);
-        setLoading(false);
-        return;
-      }
-      // Stay in the loading state while navigating, so a second click can't
-      // create a duplicate prescription.
-      router.push(`/doctor/prescriptions/${res.prescriptionId}`);
-    } catch {
-      setError("Couldn't reach the server. Your entries are still here; please try again.");
-      setLoading(false);
-    }
+    formData.set("medicinesData", JSON.stringify(medicineRows.map(({ id: _id, ...row }) => row)));
+    formData.set("labTestsData", JSON.stringify(labTestRows.map(({ id: _id, ...row }) => row)));
+    const res = mode === "edit" ? await updatePrescription(prescriptionId, formData) : await createPrescription(formData);
+    // Stays pending while navigating, so a second click can't create a duplicate.
+    if (!res?.error) router.push(`/doctor/prescriptions/${res.prescriptionId}`);
+    return res;
   }
 
-  function handleSubmit(e) {
-    // Enter key in a field saves a draft; finalizing always goes through the confirmation.
-    e.preventDefault();
-    submit("draft");
-  }
+  // Finalise-only requirements, checked inline before the confirmation opens
+  // (the server applies the same ones in readPrescription).
+  const finalising = (ctx) => ctx?.intent === "finalized";
+  const rowFilled = (row) => Object.entries(row).some(([k, v]) => k !== "id" && v);
 
   const v = initialData?.vitals;
+  const [heightCm, setHeightCm] = useState(String(v?.heightCm ?? ""));
+  const [weightKg, setWeightKg] = useState(String(v?.weightKg ?? ""));
+
+  const addButton = (onClick, label) => (
+    <Button type="button" variant="outline" onClick={onClick} className="h-10 shrink-0 gap-1.5 rounded-full px-4 text-sm">
+      <Plus className="size-4" /> {label}
+    </Button>
+  );
+  const rowNumber = (n) => (
+    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary" aria-hidden="true">
+      {n}
+    </span>
+  );
+  const removeButton = (onClick, label) => (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-lg"
+      onClick={onClick}
+      aria-label={label}
+      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+      <Trash2 className="size-4" />
+    </Button>
+  );
+  const emptyState = (Icon, text) => (
+    <p className="col-span-full flex items-center gap-2 py-2 text-sm text-muted-foreground">
+      <Icon className="size-4 text-muted-foreground/60" strokeWidth={1.75} aria-hidden="true" />
+      {text}
+    </p>
+  );
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
-      {/* Vitals Section */}
-      <Card className="border-border/60 shadow-xs">
-        <CardHeader className="pb-3 border-b border-border/40">
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <HeartPulse className="h-4 w-4 text-rose-500" strokeWidth={2} />
-            <span>Patient Vitals</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 pt-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="heightCm" className="text-xs font-semibold">Height (cm)</Label>
-            <Input id="heightCm" name="heightCm" type="number" inputMode="decimal" min="20" max="260" step="0.1" placeholder="e.g., 175" defaultValue={v?.heightCm ?? ""} className="min-h-[44px] md:min-h-[38px]" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="weightKg" className="text-xs font-semibold">Weight (kg)</Label>
-            <Input id="weightKg" name="weightKg" type="number" inputMode="decimal" min="0.5" max="400" step="0.1" placeholder="e.g., 70" defaultValue={v?.weightKg ?? ""} className="min-h-[44px] md:min-h-[38px]" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="bloodPressure" className="text-xs font-semibold">Blood Pressure</Label>
-            <BloodPressureInput id="bloodPressure" name="bloodPressure" defaultValue={v?.bloodPressure ?? ""} className="min-h-[44px] md:min-h-[38px]" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="temperatureF" className="text-xs font-semibold">Temperature (°F)</Label>
-            <Input id="temperatureF" name="temperatureF" type="number" inputMode="decimal" min="80" max="115" step="0.1" placeholder="98.6" defaultValue={v?.temperatureF ?? ""} className="min-h-[44px] md:min-h-[38px]" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="pulseRate" className="text-xs font-semibold">Pulse Rate (bpm)</Label>
-            <Input id="pulseRate" name="pulseRate" type="number" inputMode="numeric" min="20" max="250" step="1" placeholder="72" defaultValue={v?.pulseRate ?? ""} className="min-h-[44px] md:min-h-[38px]" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="spo2" className="text-xs font-semibold">SpO2 Oxygen (%)</Label>
-            <Input id="spo2" name="spo2" type="number" inputMode="decimal" min="50" max="100" step="0.1" placeholder="98" defaultValue={v?.spo2 ?? ""} className="min-h-[44px] md:min-h-[38px]" />
-          </div>
-        </CardContent>
-      </Card>
+    <Form onSubmit={handleSubmit}>
+      <FormSection title="Vitals" description="Measured at this visit. All optional." columns={6}>
+        <Field label="Height" htmlFor="heightCm">
+          <MeasureInput measure="heightCm" id="heightCm" name="heightCm" placeholder="175" defaultValue={heightCm} onValueChange={setHeightCm} className={FIELD} />
+        </Field>
+        <Field label="Weight" htmlFor="weightKg">
+          <MeasureInput measure="weightKg" id="weightKg" name="weightKg" placeholder="70" defaultValue={weightKg} onValueChange={setWeightKg} extraWarn={(w) => bmiWarning(heightCm, w)} className={FIELD} />
+        </Field>
+        <Field label="Blood pressure" htmlFor="bloodPressure">
+          <BloodPressureInput id="bloodPressure" name="bloodPressure" defaultValue={v?.bloodPressure ?? ""} className={FIELD} />
+        </Field>
+        <Field label="Temperature" htmlFor="temperatureF">
+          <MeasureInput measure="temperatureF" id="temperatureF" name="temperatureF" placeholder="98.6" defaultValue={v?.temperatureF ?? ""} className={FIELD} />
+        </Field>
+        <Field label="Pulse" htmlFor="pulseRate">
+          <MeasureInput measure="pulseRate" id="pulseRate" name="pulseRate" placeholder="72" defaultValue={v?.pulseRate ?? ""} className={FIELD} />
+        </Field>
+        <Field label="SpO₂" htmlFor="spo2">
+          <MeasureInput measure="spo2" id="spo2" name="spo2" placeholder="98" defaultValue={v?.spo2 ?? ""} className={FIELD} />
+        </Field>
+      </FormSection>
 
-      {/* Symptoms & Diagnosis */}
-      <Card className="border-border/60 shadow-xs">
-        <CardHeader className="pb-3 border-b border-border/40">
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <Stethoscope className="h-4 w-4 text-primary" strokeWidth={2} />
-            <span>Symptoms & Clinical Diagnosis</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="symptoms" className="text-xs font-semibold">Reported Symptoms</Label>
-            <Textarea id="symptoms" name="symptoms" maxLength={2000} rows={3} placeholder="Fever, cough for 3 days, sore throat..." defaultValue={initialData?.symptoms ?? ""} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="diagnosis" className="text-xs font-semibold">Diagnosis</Label>
-            <Textarea id="diagnosis" name="diagnosis" maxLength={2000} rows={2} placeholder="Acute Upper Respiratory Tract Infection (URTI)..." defaultValue={initialData?.diagnosis ?? ""} />
-          </div>
-        </CardContent>
-      </Card>
+      <FormSection title="Clinical notes" description="What the patient reports and your assessment." columns="pair">
+        <Field label="Symptoms" htmlFor="symptoms">
+          <TextArea id="symptoms" name="symptoms" label="Symptoms" maxLength={LIMITS.clinical} rows={3} placeholder="e.g. Fever and cough for 3 days, sore throat" defaultValue={initialData?.symptoms ?? ""} />
+        </Field>
+        <Field label="Diagnosis" htmlFor="diagnosis">
+          <TextArea
+            id="diagnosis"
+            name="diagnosis"
+            label="Diagnosis"
+            validate={(value, ctx) => (finalising(ctx) && !String(value ?? "").trim() ? "A diagnosis is required to finalise" : "")}
+            maxLength={LIMITS.clinical}
+            rows={2} placeholder="e.g. Acute upper respiratory tract infection" defaultValue={initialData?.diagnosis ?? ""} />
+        </Field>
+      </FormSection>
 
-      {/* Medicines */}
-      <Card className="border-border/60 shadow-xs">
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-border/40">
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <Pill className="h-4 w-4 text-primary" strokeWidth={2} />
-            <span>Prescribed Medications</span>
-          </CardTitle>
-          <Button type="button" variant="outline" size="sm" onClick={addMedicineRow} className="w-full sm:w-auto min-h-[40px] sm:min-h-0 text-xs shadow-xs">
-            <Plus className="mr-1 h-3.5 w-3.5" strokeWidth={1.75} /> Add Medication
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-4">
-          {medicineRows.map((row, index) => (
-            <div
-              key={row.id}
-              className="border border-border/60 rounded-xl p-3.5 space-y-3 bg-muted/20 md:border-0 md:p-0 md:bg-transparent md:grid md:grid-cols-12 md:gap-2 md:items-end md:border-b md:pb-4 md:last:border-0"
-            >
-              <div className="md:col-span-4 space-y-1.5">
-                <Label htmlFor={`${row.id}-medicine`} className="text-xs font-semibold">Medicine</Label>
+      <FormSection
+        title="Medicines"
+        description={medicineRows.length ? `${medicineRows.length} prescribed` : "Add each medicine with its dose and duration."}
+        columns={1}
+        aside={addButton(addMedicineRow, "Add medicine")}>
+        {medicineRows.length === 0 && emptyState(Pill, "No medicines added yet")}
+        {medicineRows.map((row, index) => (
+          <div key={row.id} className="border-b border-border/70 pb-5 last:border-b-0 last:pb-0">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {rowNumber(index + 1)}
+                <span className="text-sm font-medium text-foreground">Medicine {index + 1}</span>
+              </div>
+              {removeButton(() => removeMedicineRow(row.id), `Remove medicine ${index + 1}`)}
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
+              <Field label="Medicine" htmlFor={`${row.id}-medicine`} name={`medicines.${index}.medicineId`} className="sm:col-span-6 xl:col-span-2">
                 <Combobox
                   id={`${row.id}-medicine`}
+                  name={`medicines.${index}.medicineId`}
+                  validate={(value, ctx) => (finalising(ctx) && rowFilled(row) && !value ? "Choose a medicine" : "")}
                   items={medicineItems}
                   value={row.medicineId}
                   onValueChange={(v) => updateMedicineRow(row.id, "medicineId", v)}
-                  placeholder="Search medicine"
+                  placeholder="Search medicine by brand or generic name"
                   emptyText="No medicines match"
                 />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:contents">
-                <div className="md:col-span-2 space-y-1.5">
-                  <Label htmlFor={`${row.id}-dosage`} className="text-xs font-semibold">Dosage</Label>
-                  <Input
-                    id={`${row.id}-dosage`}
-                    maxLength={60}
-                    placeholder="1 tablet"
-                    value={row.dosage}
-                    onChange={(e) => updateMedicineRow(row.id, "dosage", e.target.value)}
-                    className="min-h-[44px] md:min-h-[36px]"
-                  />
-                </div>
-                <div className="md:col-span-2 space-y-1.5">
-                  <Label htmlFor={`${row.id}-frequency`} className="text-xs font-semibold">Frequency</Label>
-                  <Input
-                    id={`${row.id}-frequency`}
-                    maxLength={60}
-                    placeholder="Twice daily"
-                    value={row.frequency}
-                    onChange={(e) => updateMedicineRow(row.id, "frequency", e.target.value)}
-                    className="min-h-[44px] md:min-h-[36px]"
-                  />
-                </div>
-                <div className="md:col-span-2 space-y-1.5">
-                  <Label htmlFor={`${row.id}-duration`} className="text-xs font-semibold">Duration</Label>
-                  <Input
-                    id={`${row.id}-duration`}
-                    maxLength={60}
-                    placeholder="5 days"
-                    value={row.duration}
-                    onChange={(e) => updateMedicineRow(row.id, "duration", e.target.value)}
-                    className="min-h-[44px] md:min-h-[36px]"
-                  />
-                </div>
-              </div>
-              <div className="md:col-span-1 space-y-1.5">
-                <Label htmlFor={`${row.id}-notes`} className="text-xs font-semibold">Notes</Label>
-                <Input
-                  id={`${row.id}-notes`}
-                  maxLength={200}
-                  placeholder="After meals"
-                  value={row.instructions}
-                  onChange={(e) => updateMedicineRow(row.id, "instructions", e.target.value)}
-                  className="min-h-[44px] md:min-h-[36px]"
-                />
-              </div>
-              <div className="md:col-span-1 pt-1 md:pt-0">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeMedicineRow(row.id)}
-                  className="w-full md:w-auto min-h-[44px] md:min-h-[36px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex items-center justify-center gap-1.5"
-                  aria-label={`Remove medicine ${index + 1}`}
-                >
-                  <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                  <span className="md:hidden text-xs text-destructive">Remove</span>
-                </Button>
-              </div>
+              </Field>
+              <Field label="Dosage" htmlFor={`${row.id}-dosage`} name={`medicines.${index}.dosage`} className="sm:col-span-2 xl:col-span-1">
+                <SuggestInput id={`${row.id}-dosage`} name={`medicines.${index}.dosage`} validate={(value, ctx) => (finalising(ctx) && rowFilled(row) && !String(value ?? "").trim() ? "Dosage is required" : "")} placeholder="e.g. 1 tablet" value={row.dosage} onValueChange={(t) => updateMedicineRow(row.id, "dosage", t)} suggest={(q) => suggestDosage(q, dosageFormById.get(row.medicineId))} />
+              </Field>
+              <Field label="Frequency" htmlFor={`${row.id}-frequency`} name={`medicines.${index}.frequency`} className="sm:col-span-2 xl:col-span-1">
+                <SuggestInput id={`${row.id}-frequency`} name={`medicines.${index}.frequency`} validate={(value, ctx) => (finalising(ctx) && rowFilled(row) && !String(value ?? "").trim() ? "Frequency is required" : "")} placeholder="e.g. bd, tds" value={row.frequency} onValueChange={(t) => updateMedicineRow(row.id, "frequency", t)} suggest={(q) => suggestFrom(FREQUENCIES, q)} />
+              </Field>
+              <Field label="Duration" htmlFor={`${row.id}-duration`} name={`medicines.${index}.duration`} className="sm:col-span-2 xl:col-span-1">
+                <SuggestInput id={`${row.id}-duration`} name={`medicines.${index}.duration`} placeholder="e.g. 5d, 2w" value={row.duration} onValueChange={(t) => updateMedicineRow(row.id, "duration", t)} suggest={suggestDuration} />
+              </Field>
+              <Field label="Instructions" htmlFor={`${row.id}-notes`} name={`medicines.${index}.instructions`} className="sm:col-span-6 xl:col-span-1">
+                <SuggestInput id={`${row.id}-notes`} name={`medicines.${index}.instructions`} maxLength={LIMITS.rowNote} placeholder="e.g. After meals" value={row.instructions} onValueChange={(t) => updateMedicineRow(row.id, "instructions", t)} suggest={(q) => suggestFrom(MEDICINE_INSTRUCTIONS, q)} />
+              </Field>
             </div>
-          ))}
-          {medicineRows.length === 0 && (
-            <p className="text-xs text-muted-foreground italic py-2">No medications added yet. Click &quot;Add Medication&quot; above.</p>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        ))}
+      </FormSection>
 
-      {/* Lab Tests */}
-      <Card className="border-border/60 shadow-xs">
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-border/40">
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <FlaskConical className="h-4 w-4 text-primary" strokeWidth={2} />
-            <span>Diagnostic Laboratory Tests</span>
-          </CardTitle>
-          <Button type="button" variant="outline" size="sm" onClick={addLabTestRow} className="w-full sm:w-auto min-h-[40px] sm:min-h-0 text-xs shadow-xs">
-            <Plus className="mr-1 h-3.5 w-3.5" strokeWidth={1.75} /> Add Test
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-4">
-          {labTestRows.map((row, index) => (
-            <div
-              key={row.id}
-              className="border border-border/60 rounded-xl p-3.5 space-y-3 bg-muted/20 md:border-0 md:p-0 md:bg-transparent md:grid md:grid-cols-12 md:gap-2 md:items-end md:border-b md:pb-4 md:last:border-0"
-            >
-              <div className="md:col-span-6 space-y-1.5">
-                <Label htmlFor={`${row.id}-test`} className="text-xs font-semibold">Test</Label>
+      <FormSection
+        title="Lab tests"
+        description={labTestRows.length ? `${labTestRows.length} ordered` : "Order investigations if needed."}
+        columns={1}
+        aside={addButton(addLabTestRow, "Add test")}>
+        {labTestRows.length === 0 && emptyState(FlaskConical, "No lab tests ordered")}
+        {labTestRows.map((row, index) => (
+          <div key={row.id} className="flex items-start gap-3 border-b border-border/70 pb-5 last:border-b-0 last:pb-0">
+            <div className="pt-8 md:pt-[2.15rem]">{rowNumber(index + 1)}</div>
+            <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Test" htmlFor={`${row.id}-test`} name={`labTests.${index}.labTestId`}>
                 <Combobox
                   id={`${row.id}-test`}
+                  name={`labTests.${index}.labTestId`}
+                  validate={(value, ctx) => (finalising(ctx) && rowFilled(row) && !value ? "Choose a test" : "")}
                   items={labTestItems}
                   value={row.labTestId}
                   onValueChange={(v) => updateLabTestRow(row.id, "labTestId", v)}
                   placeholder="Search test"
                   emptyText="No tests match"
                 />
-              </div>
-              <div className="md:col-span-5 space-y-1.5">
-                <Label htmlFor={`${row.id}-test-notes`} className="text-xs font-semibold">Instructions / Special Notes</Label>
-                <Input
-                  id={`${row.id}-test-notes`}
-                  maxLength={200}
-                  placeholder="Fasting required, morning sample..."
-                  value={row.instructions}
-                  onChange={(e) => updateLabTestRow(row.id, "instructions", e.target.value)}
-                  className="min-h-[44px] md:min-h-[36px]"
-                />
-              </div>
-              <div className="md:col-span-1 pt-1 md:pt-0">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeLabTestRow(row.id)}
-                  className="w-full md:w-auto min-h-[44px] md:min-h-[36px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex items-center justify-center gap-1.5"
-                  aria-label={`Remove lab test ${index + 1}`}
-                >
-                  <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                  <span className="md:hidden text-xs text-destructive">Remove</span>
-                </Button>
-              </div>
+              </Field>
+              <Field label="Instructions" htmlFor={`${row.id}-test-notes`} name={`labTests.${index}.instructions`}>
+                <SuggestInput id={`${row.id}-test-notes`} name={`labTests.${index}.instructions`} maxLength={LIMITS.rowNote} placeholder="e.g. Fasting" value={row.instructions} onValueChange={(t) => updateLabTestRow(row.id, "instructions", t)} suggest={(q) => suggestFrom(LAB_INSTRUCTIONS, q)} />
+              </Field>
             </div>
-          ))}
-          {labTestRows.length === 0 && (
-            <p className="text-xs text-muted-foreground italic py-2">No laboratory tests added yet.</p>
-          )}
-        </CardContent>
-      </Card>
+            <div className="pt-7">{removeButton(() => removeLabTestRow(row.id), `Remove lab test ${index + 1}`)}</div>
+          </div>
+        ))}
+      </FormSection>
 
-      {/* Advice */}
-      <Card className="border-border/60 shadow-xs">
-        <CardHeader className="pb-3 border-b border-border/40">
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <FileText className="h-4 w-4 text-primary" strokeWidth={2} />
-            <span>Doctor&apos;s Advice & Follow-Up</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <Label htmlFor="advice" className="sr-only">Advice and follow-up</Label>
-          <Textarea id="advice" name="advice" maxLength={2000} rows={3} placeholder="Rest, hydration, follow-up in 5 days, dietary instructions..." defaultValue={initialData?.advice ?? ""} />
-        </CardContent>
-      </Card>
+      <FormSection title="Advice & follow-up" description="Printed at the bottom of the prescription." columns={1}>
+        <Field label="Advice" htmlFor="advice">
+          <TextArea id="advice" name="advice" label="Advice" maxLength={LIMITS.clinical} rows={3} placeholder="e.g. Rest, plenty of fluids, follow up in 5 days" defaultValue={initialData?.advice ?? ""} />
+          <QuickChips targetId="advice" chips={ADVICE_CHIPS} />
+        </Field>
+      </FormSection>
 
-      {error && (
-        <p role="alert" className="text-sm font-medium text-destructive p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-          {error}
-        </p>
-      )}
+      <FormStatus />
+      <PrescriptionActions />
+    </Form>
+  );
+}
 
-      <div className="flex flex-col sm:flex-row gap-3 pt-2">
-        <Button type="submit" variant="outline" disabled={loading} className="w-full sm:w-auto min-h-[44px]">
-          {loading && submittingIntent === "draft" ? "Saving draft..." : "Save Draft"}
+/**
+ * Save draft / Finalise. Finalise first runs every inline check with the
+ * finalise-only rules (diagnosis, complete medicine rows) and opens the
+ * confirmation only when they pass, so problems are shown on the exact cells.
+ */
+function PrescriptionActions() {
+  const form = useFormContext();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [intent, setIntent] = useState("draft");
+  const pending = form.pending;
+
+  return (
+    <>
+      <FormActions>
+        <Button type="submit" variant="outline" disabled={pending} onClick={() => setIntent("draft")} className="h-11 px-5">
+          {pending && intent === "draft" ? "Saving draft…" : "Save draft"}
         </Button>
-        <Button type="button" disabled={loading} onClick={() => setConfirmOpen(true)} className="w-full sm:w-auto min-h-[44px] shadow-xs">
-          {loading && submittingIntent === "finalized" ? "Finalizing..." : "Generate & Finalize Prescription"}
+        <Button
+          type="button"
+          disabled={pending}
+          onClick={() => {
+            if (form.validate({ intent: "finalized" })) setConfirmOpen(true);
+          }}
+          className="h-11 gap-2 px-6">
+          <CheckCircle className="size-4" />
+          {pending && intent === "finalized" ? "Finalising…" : "Finalise prescription"}
         </Button>
-      </div>
+      </FormActions>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent className="rounded-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Finalize this prescription?</AlertDialogTitle>
+            <AlertDialogTitle>Finalise this prescription?</AlertDialogTitle>
             <AlertDialogDescription>
-              Once finalized it can&apos;t be edited. It gets a verification QR code and becomes visible to the
+              Once finalised it can&apos;t be edited. It gets a verification QR code and becomes visible to the
               patient. Check the medicines and doses before you continue.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -387,14 +320,14 @@ export function PrescriptionForm({ patient, medicines, labTests, mode = "create"
             <AlertDialogAction
               onClick={() => {
                 setConfirmOpen(false);
-                submit("finalized");
-              }}
-            >
-              Finalize
+                setIntent("finalized");
+                form.submit({ intent: "finalized" });
+              }}>
+              Finalise
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </form>
+    </>
   );
 }

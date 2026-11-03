@@ -15,13 +15,15 @@ export function DoctorStatusToggle({ doctorId, doctorName, isActive }) {
     setActive(checked);
     setError("");
     startTransition(async () => {
-      const res = await toggleDoctorActive(doctorId, checked);
-      if (res?.error) {
+      try {
+        const res = await toggleDoctorActive(doctorId, checked);
+        if (res?.error) throw new Error(res.error);
+        router.refresh();
+      } catch (err) {
+        // Roll back the optimistic switch, as the other inline controls do.
         setActive(!checked);
-        setError(res.error);
-        return;
+        setError(err?.message && err.message !== "Failed to fetch" ? err.message : "Couldn't reach the server. Check your connection and try again.");
       }
-      router.refresh();
     });
   }
 
@@ -34,7 +36,7 @@ export function DoctorStatusToggle({ doctorId, doctorName, isActive }) {
         aria-label={`${active ? "Deactivate" : "Activate"} ${doctorName ? `Dr. ${doctorName}` : "doctor"}`}
       />
       {error && (
-        <p role="alert" className="text-[11px] text-destructive max-w-40 text-center">
+        <p role="alert" className="text-xs text-destructive max-w-40 text-center">
           {error}
         </p>
       )}

@@ -1,9 +1,5 @@
-import { Instrument_Serif } from "next/font/google";
 import { LogoMark, Wordmark } from "@/components/brand/logo";
 import { BRAND } from "@/components/brand/logo-geometry";
-import { cn } from "@/lib/utils";
-
-const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["normal", "italic"] });
 
 export const metadata = {
   title: "Sign in",
@@ -11,16 +7,16 @@ export const metadata = {
 };
 
 // Tone-on-tone panel colours: the large background mark sits just above the
-// panel colour, so it reads as texture rather than an illustration.
+// deep-sage panel, so it reads as texture rather than an illustration. The
+// panel is brand ink in both themes.
 const PANEL = BRAND.ink;
-const TONE = { ink: "#346456", mint: "#386b5c" };
+const TONE = { ink: `color-mix(in oklch, ${BRAND.ink}, white 4%)`, mint: `color-mix(in oklch, ${BRAND.ink}, white 6%)` };
 
 export default function AuthLayout({ children }) {
   return (
     <div className="min-h-screen w-full flex flex-col md:flex-row bg-background text-foreground">
       <aside
-        className="relative overflow-hidden shrink-0 md:w-[44%] md:min-h-screen flex flex-col justify-between px-6 py-6 md:px-12 md:py-12 text-[#f4f8f5]"
-        style={{ backgroundColor: PANEL }}
+        className="relative overflow-hidden shrink-0 md:w-[44%] md:min-h-screen flex flex-col justify-between px-6 py-6 md:px-12 md:py-12 bg-brand-ink text-brand-paper"
       >
         <LogoMark
           palette={TONE}
@@ -35,15 +31,13 @@ export default function AuthLayout({ children }) {
         </div>
 
         <div className="relative hidden md:block max-w-sm">
-          <p className={cn(serif.className, "text-[2.75rem] leading-[1.05] tracking-[-0.01em]")}>
+          <p className="font-display text-5xl leading-[1.05] tracking-[-0.01em]">
             Prescriptions,
             <br />
-            <span className="italic" style={{ color: BRAND.mint }}>
-              written clearly.
-            </span>
+            <span className="italic text-brand-mint">written clearly.</span>
           </p>
-          <p className="mt-5 text-sm leading-relaxed text-[#f4f8f5]/70">
-            Patient records, prescriptions and appointments for your clinic, in one quiet place.
+          <p className="mt-5 text-sm leading-relaxed text-brand-paper/70">
+            Patient records, prescriptions and appointments for your clinic.
           </p>
         </div>
       </aside>

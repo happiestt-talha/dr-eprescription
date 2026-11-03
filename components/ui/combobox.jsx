@@ -5,6 +5,7 @@ import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox"
 import { CheckIcon, ChevronDownIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { matches } from "@/lib/search"
+import { useFormField } from "@/components/ui/form"
 
 /**
  * A searchable replacement for Select, styled identically to
@@ -27,8 +28,21 @@ function Combobox({
   required,
   disabled,
   className,
+  label,
+  validate,
   "aria-label": ariaLabel,
 }) {
+  // Inline validation in a <Form>: `required`, plus `validate(value, ctx)`.
+  const [current, setCurrent] = React.useState(value ?? defaultValue ?? "")
+  const selected = value !== undefined ? value : current
+  const { attach: fieldRef, ...field } = useFormField(name, {
+    validate: (v, ctx) => {
+      const val = v ?? selected
+      if (required && !val) return `Choose ${label ? label.toLowerCase() : "an option"}`
+      return validate?.(val, ctx) || ""
+    },
+    getValue: () => selected,
+  })
   const byValue = React.useMemo(() => new Map(items.map((item) => [item.value, item])), [items])
   const controlled = value !== undefined
   const toItem = (v) => (v === undefined || v === null || v === "" ? null : (byValue.get(v) ?? null))
@@ -37,7 +51,13 @@ function Combobox({
     <ComboboxPrimitive.Root
       items={items}
       {...(controlled ? { value: toItem(value) } : { defaultValue: toItem(defaultValue) })}
-      onValueChange={(item) => onValueChange?.(item?.value ?? "")}
+      onValueChange={(item) => {
+        const v = item?.value ?? ""
+        setCurrent(v)
+        onValueChange?.(v)
+        field.changed(v)
+        field.blurred(v)
+      }}
       itemToStringLabel={(item) => item?.label ?? ""}
       itemToStringValue={(item) => item?.value ?? ""}
       isItemEqualToValue={(a, b) => a?.value === b?.value}
@@ -50,10 +70,13 @@ function Combobox({
     >
       <div className={cn("relative w-full", className)}>
         <ComboboxPrimitive.Input
+          ref={fieldRef}
           id={id}
+          aria-invalid={field.error ? true : undefined}
+          aria-describedby={field.error ? field.errorId : undefined}
           placeholder={placeholder}
           aria-label={ariaLabel}
-          className="flex h-8 w-full items-center rounded-lg border border-input bg-transparent py-2 pr-8 pl-2.5 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:hover:bg-input/50 min-h-[44px] md:min-h-[36px]"
+          className="flex w-full items-center rounded-lg border border-input bg-transparent py-2 pr-8 pl-2.5 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:hover:bg-input/50 h-11 md:h-10"
         />
         <ComboboxPrimitive.Trigger
           aria-label="Show options"

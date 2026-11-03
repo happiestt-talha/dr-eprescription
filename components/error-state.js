@@ -1,22 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { Instrument_Serif } from "next/font/google";
 import { useContext, useEffect, useState, useTransition } from "react";
 import { SessionContext } from "next-auth/react";
-import { Check, Copy, Hourglass, LifeBuoy, Loader2, RotateCw, Wifi, WifiOff } from "lucide-react";
+import { Check, Copy, LifeBuoy, Loader2, RotateCw, Wifi, WifiOff } from "lucide-react";
 import { Logo, LogoMark } from "@/components/brand/logo";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/datetime";
 import { ROLE_HOME } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
-const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["normal", "italic"] });
+// Tone-on-tone background mark: barely darker than the page, in either theme.
+const TONE = {
+  ink: "color-mix(in oklch, var(--foreground) 6%, var(--background))",
+  mint: "color-mix(in oklch, var(--primary) 7%, var(--background))",
+};
 
-// Tone-on-tone background mark, barely darker than the paper background.
-const TONE = { ink: "#e6eee9", mint: "#e9f2ed" };
-
-const CARD = "rounded-2xl border border-border bg-card shadow-[0_1px_2px_rgba(16,24,20,0.04)]";
+const CARD = "rounded-lg border border-border bg-card";
 
 function useOnline() {
   const [online, setOnline] = useState(true);
@@ -50,11 +50,11 @@ function OnlineBadge({ online }) {
     <span
       role="status"
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
-        online ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"
+        "inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium",
+        online ? "bg-success/12 text-success-strong" : "bg-destructive/10 text-destructive-strong"
       )}
     >
-      <span className={cn("h-1.5 w-1.5 rounded-full", online ? "bg-primary" : "bg-destructive")} aria-hidden="true" />
+      <span className={cn("size-1.5 rounded-full", online ? "bg-success" : "bg-destructive")} aria-hidden="true" />
       {online ? "You're online" : "You're offline"}
     </span>
   );
@@ -76,11 +76,11 @@ function CopyReference({ digest, occurredAt }) {
   return (
     <div className="flex items-center gap-3">
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Reference</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Reference</p>
         <p className="mt-0.5 truncate font-mono text-sm">{digest}</p>
         <p className="text-xs text-muted-foreground">{occurredAt}</p>
       </div>
-      <Button variant="outline" size="sm" onClick={copy} className="h-9 rounded-lg px-3" aria-live="polite">
+      <Button variant="outline" size="lg" onClick={copy} className="px-3" aria-live="polite">
         {copied ? <Check className="h-4 w-4 mr-1.5" aria-hidden="true" /> : <Copy className="h-4 w-4 mr-1.5" aria-hidden="true" />}
         {copied ? "Copied" : "Copy"}
       </Button>
@@ -88,9 +88,8 @@ function CopyReference({ digest, occurredAt }) {
   );
 }
 
-function Checklist({ online, compact = false }) {
+function Checklist({ online }) {
   const rows = [
-    { icon: Hourglass, title: "Wait a moment and try again", text: "Most of these clear up within a few seconds." },
     {
       icon: online ? Wifi : WifiOff,
       title: "Check your internet connection",
@@ -100,12 +99,10 @@ function Checklist({ online, compact = false }) {
     { icon: LifeBuoy, title: "Still stuck?", text: "Send the reference below to your clinic administrator." },
   ];
   return (
-    <ul className={cn("space-y-1", compact && "space-y-0")}>
+    <ul className="space-y-1">
       {rows.map(({ icon: Icon, title, text, extra }) => (
-        <li key={title} className={cn("flex items-start gap-3 rounded-xl px-3", compact ? "py-2" : "py-3")}>
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden="true" />
-          </span>
+        <li key={title} className="flex items-start gap-3 px-3 py-3">
+          <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
           <span className="min-w-0 flex-1">
             <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
               {title}
@@ -124,16 +121,16 @@ function Actions({ onRetry, home }) {
   return (
     <div className="flex flex-wrap gap-3">
       {onRetry && (
-        <Button className="h-11 rounded-lg px-5" disabled={retrying} onClick={() => startRetry(() => onRetry())}>
+        <Button size="touch" disabled={retrying} onClick={() => startRetry(() => onRetry())}>
           {retrying ? (
             <Loader2 className="h-4 w-4 mr-1.5 animate-spin" aria-hidden="true" />
           ) : (
             <RotateCw className="h-4 w-4 mr-1.5" aria-hidden="true" />
           )}
-          {retrying ? "Trying again" : "Try again"}
+          {retrying ? "Trying again…" : "Try again"}
         </Button>
       )}
-      <Link href={home.href} className={cn(buttonVariants({ variant: "outline" }), "h-11 rounded-lg px-4")}>
+      <Link href={home.href} className={buttonVariants({ variant: "outline", size: "touch" })}>
         {home.label}
       </Link>
     </div>
@@ -159,30 +156,28 @@ export function ErrorState({ error, onRetry, variant = "inline" }) {
 
   const digest = error?.digest;
   const cause = online
-    ? "We couldn't load this page, most often because the clinic's database was slow to respond. It's usually temporary."
-    : "Your device seems to be offline, so this page couldn't load. Reconnect and try again.";
+    ? "The clinic's database was probably slow to respond. This is usually temporary."
+    : "You're offline, so this page couldn't load. Reconnect and try again.";
 
   if (variant === "inline") {
     return (
       <div className="flex justify-center p-4 sm:p-8">
-        <div className={cn(CARD, "w-full max-w-xl p-6 sm:p-8 animate-in fade-in-0 slide-in-from-bottom-1 duration-500")}>
-          <p className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground">
-            <span className="h-1.5 w-1.5 rounded-full bg-destructive" aria-hidden="true" />
-            Something went wrong
-          </p>
-          <h1 className={cn(serif.className, "mt-4 text-[2.5rem] leading-[1.05] tracking-[-0.01em]")}>
-            We hit a <span className="italic text-primary">small snag.</span>
-          </h1>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{cause}</p>
+        <div className={cn(CARD, "w-full max-w-xl p-6 sm:p-8")}>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Error</p>
+            {!online && <OnlineBadge online={online} />}
+          </div>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight">Couldn&apos;t load this page</h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{cause}</p>
           <div className="mt-6">
             <Actions onRetry={onRetry} home={home} />
           </div>
-          <div className="mt-6 border-t border-border pt-4">
-            <Checklist online={online} compact />
-          </div>
           {digest && (
-            <div className="mt-2 rounded-xl bg-muted/60 px-4 py-3">
+            <div className="mt-6 border-t border-border pt-4">
               <CopyReference digest={digest} occurredAt={occurredAt} />
+              <p className="mt-3 text-xs text-muted-foreground">
+                If this keeps happening, send the reference to your clinic administrator.
+              </p>
             </div>
           )}
         </div>
@@ -207,16 +202,11 @@ export function ErrorState({ error, onRetry, variant = "inline" }) {
       <main className="relative flex-1 flex items-center px-6 py-12 md:px-12">
         <div className="mx-auto w-full max-w-5xl grid gap-12 md:grid-cols-[1.15fr_1fr] md:items-center">
           <section className="animate-in fade-in-0 slide-in-from-bottom-1 duration-500">
-            <p className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs font-medium text-muted-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-destructive" aria-hidden="true" />
-              Something went wrong
-            </p>
-            <h1 className={cn(serif.className, "mt-6 text-[3.25rem] leading-[1] tracking-[-0.015em] md:text-[4.5rem]")}>
-              We hit a
-              <br />
-              <span className="italic text-primary">small snag.</span>
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Error</p>
+            <h1 className="mt-4 font-display text-5xl leading-none tracking-[-0.015em] md:text-7xl">
+              This page <span className="italic text-primary">didn&apos;t load.</span>
             </h1>
-            <p className="mt-5 max-w-md text-[15px] leading-relaxed text-muted-foreground">{cause}</p>
+            <p className="mt-5 max-w-md text-base leading-relaxed text-muted-foreground">{cause}</p>
             <div className="mt-8">
               <Actions onRetry={onRetry} home={home} />
             </div>
@@ -224,7 +214,7 @@ export function ErrorState({ error, onRetry, variant = "inline" }) {
 
           <section className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-700" aria-label="What you can try">
             <div className={cn(CARD, "p-2")}>
-              <p className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="px-3 pt-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 What you can try
               </p>
               <Checklist online={online} />
@@ -238,9 +228,8 @@ export function ErrorState({ error, onRetry, variant = "inline" }) {
         </div>
       </main>
 
-      <footer className="relative flex flex-col gap-1 px-6 pb-6 text-xs text-muted-foreground sm:flex-row sm:justify-between md:px-12">
-        <span>&copy; {new Date().getFullYear()} MedScript</span>
-        <span>Need help? Contact your clinic administrator.</span>
+      <footer className="relative px-6 pb-6 text-xs text-muted-foreground md:px-12">
+        &copy; {new Date().getFullYear()} MedScript
       </footer>
     </div>
   );

@@ -78,12 +78,41 @@ A second, independent audit (security, correctness/reliability, frontend/UX, plu
 - **Login rate limiting is per process.** Use Redis for multiple instances. The IP key relies on `x-forwarded-for`, which is spoofable unless a trusted proxy sets it.
 - **Not audited:** failed logins (server log only), record views and PDF downloads.
 - **Verify signatures reuse `AUTH_SECRET`.** Rotating it downgrades printed QR codes to "on record".
+- ✅ **Lists were capped, gated or searched inconsistently.** Fixed:
+  - Silent caps removed: appointments (100), report history (30), receptionist visit history (10), and the booking notice count (3).
+  - The patient list was only shown after typing, and each search went to the server.
+  - Audit log search covered one page, and out-of-range pages showed "page 9 of 3".
+  - Two separate pagination components were merged into one.
+  - Over-fetching removed: full patient/doctor rows (CNIC, address, allergies) were sent to the browser for appointments; `include: { user: true }` loaded password hashes for the doctor list and doctors report; full catalogs and prescription rows went to the prescription form.
+  - Queries batched: the admin dashboard made two sequential round trips, the doctor dashboard loaded every patient id to count them, and the edit-prescription page fetched sequentially.
+  - Report exports now say when they hit the 5,000-row cap.
+  - Every list now uses `lib/lists.js` + `DataList`.
+  - Missing indexes were added in migration `20261103120000_list_indexes`.
+- ✅ **Validation reported one error at a time, only after submit.** Actions now collect every field's error (`createReader` → `fieldErrors`) and every form shows errors inline as you go (`<Form>` controller), with the same rules in the browser and on the server (`lib/rules.js`). Fixed along the way:
+  - The doctor form passed `maxLength={undefined}`, removing the 80/120/40 caps from the name, title and code inputs.
+  - Login submitted an empty password.
+  - Prescription "Finalise" bypassed browser checks.
+  - `code()` accepted spaces its message forbade.
+  - `parseClinicDateTime` accepted `10:75`; appointments had no upper date bound.
+  - `updateAppointmentStatus` didn't validate `status` and echoed it in the message.
+  - The report `doctorId` wasn't checked as a UUID, and report dates could be in the future.
+  - `dosageForm` was free text on the server.
+  - Lookups had no length cap and queried before checking the session.
+  - The doctor password had no maximum.
+  - The patient address kept newlines the input can't type.
+  - API routes didn't check the `[id]` format or catch errors, and skipped the `isActive` check.
+  - `doctor-status-toggle` had no try/catch.
+  - The reschedule dialog kept a stale error.
+- **Old measurements may be outliers.** The stricter limits (`MEASURES`, e.g. height 30–250 cm, weight ≤ 300 kg, pulse 30–220) apply to new writes only. Older patient and vitals rows weren't checked against them, and re-saving such a record will ask for a valid value.
+- ✅ **Numeric fields accepted any number.** `type="number"` inputs allowed values like `4683534` or `1e5`. They are now `MeasureInput` with shared limits (`MEASURES`), enforced again on the server by `measure()`.
+- ✅ **Stored age went stale.** Age was a typed-in number that never advanced. It is now derived from the date of birth, with an approximate-age option stored as an estimated date of birth (`dobEstimated`). Native browser date pickers were also replaced by the custom `DatePicker`/`DateTimePicker`, and the forms got a shared, centred layout.
+- ✅ **Names silently lost digits.** `personName()` in `lib/validate.js` stripped numbers (`Ali123` saved as `Ali`), and `NameInput` dropped them without explanation. The server now rejects any numeral ("can't contain numbers"), and `NameInput` shows an inline hint when it drops a character.
 - **Accessibility leftovers:** some remaining mobile label/value rows can overflow with very long text, and there are two headers on mobile.
 
 ## Medium
 
 - ✅ Print: the sidebar, top bar, breadcrumbs and print button are hidden when printing (`print:hidden`).
-- ✅ The Geist font is applied (`--font-sans: var(--font-geist-sans)`).
+- ✅ Fonts: IBM Plex Sans/Mono and Instrument Serif, loaded once in `lib/fonts.js` (replaced the default Geist).
 - ✅ Receptionist appointments have Upcoming (soonest first) and Past (`?view=past`, newest first) tabs.
 - ✅ "Dr. Dr." names: the `Dr.` title is stripped on doctor save and in the seed. `scripts/secure-demo-accounts.js` fixes existing rows.
 - ✅ The prescription submit buttons show the right loading text.
@@ -107,6 +136,19 @@ A second, independent audit (security, correctness/reliability, frontend/UX, plu
 - ✅ Role guards are centralised in `lib/auth-guards.js`.
 - ✅ Root metadata is set.
 - `.js` and `.jsx` are mixed; `components/patient/` vs `components/patients/` naming.
-- Duplicated doctor and receptionist patient pages, duplicated prescription views, and three sidebar implementations.
+- Duplicated doctor and receptionist patient pages (each has its own small `PatientDetails`; a shared `components/patients/patient-details.js` would remove it). The prescription views are now one `PrescriptionView`.
 - `package.json#prisma` seed config is deprecated in Prisma 7.
 - 2 ESLint `<img>` warnings; no tests, no CI.
+
+## UI de-slop pass (2026-11-03)
+
+- ✅ Dark mode works: `next-themes` + Light/Dark/System in the account menu. The logo, the background marks and status colours follow the theme.
+- ✅ Status colours use the `success`/`warning`/`info`/`destructive` tokens (the raw emerald/amber/sky/rose classes are gone). `StatusBadge` shows "Finalised", not the raw enum.
+- ✅ One `<h1>` per page: the top bar (static role title + "Welcome back") was removed; the account menu moved to the sidebar footer.
+- ✅ The rainbow stat-card dashboards were replaced with work lists (`lib/dashboard.js`, `components/ui/panel.jsx`). The admin "Today's patients" figure is now labelled "New patients today" (it counts registrations).
+- ✅ The prescription detail pages (doctor and patient) share `PrescriptionView` (no tabs, no nested cards, no gradient). The doctor view no longer redirects drafts to edit; it shows them with a Draft band.
+- ✅ Copy: sentence case, British spelling, one name per concept, overclaims removed ("Real-time", "Verified & Finalized", "Official E-Prescription", "electronic health records system").
+- ✅ The audit log reuses `DataListRows`, so it matches every other list.
+- `Prescription` has no follow-up date or `updatedAt`; the view's `followUp` prop is unused and the dashboard shows when a draft was started.
+- The receptionist patient profile still omits clinical fields (allergies, conditions, blood group).
+

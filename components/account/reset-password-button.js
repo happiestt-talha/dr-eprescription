@@ -33,7 +33,7 @@ function CopyValue({ label, value }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3">
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
         <p className="mt-0.5 truncate font-mono text-base font-semibold">{value}</p>
       </div>
       <Button type="button" variant="outline" size="sm" onClick={copy} className="h-8 rounded-lg px-2.5" aria-label={`Copy ${label.toLowerCase()}`}>
@@ -71,7 +71,7 @@ export function ResetPasswordButton({ kind, targetId, name, className }) {
       if (res?.error) setError(res.error);
       else setResult(res);
     } catch {
-      setError("Couldn't reach the server. Please try again.");
+      setError("Couldn't reach the server. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -121,7 +121,7 @@ export function ResetPasswordButton({ kind, targetId, name, className }) {
               <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
               <Button onClick={reset} disabled={loading}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-                {loading ? "Resetting" : "Reset password"}
+                {loading ? "Resetting…" : "Reset password"}
               </Button>
             </AlertDialogFooter>
           </>

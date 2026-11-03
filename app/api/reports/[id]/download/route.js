@@ -1,18 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { auth } from "@/auth";
+import { apiRoute, jsonError } from "@/lib/api";
 import { fetchReportData, buildReportCsv } from "@/lib/reports";
 import { renderReportPdf } from "@/lib/pdf";
 
-export async function GET(request, { params }) {
-  const { id } = await params;
-  const session = await auth();
-  if (!session || session.user.role !== "admin") {
-    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
-  }
-
+export const GET = apiRoute({ roles: ["admin"] }, async (request, { id }) => {
   const report = await prisma.report.findUnique({ where: { id } });
-  if (!report) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!report) return jsonError("Not found", 404);
 
   const { title, headers, rows } = await fetchReportData(report.reportType, report.filters || {});
 
@@ -36,4 +30,4 @@ export async function GET(request, { params }) {
       "Content-Disposition": `inline; filename="${report.reportType}-report.pdf"`,
     },
   });
-}
+});

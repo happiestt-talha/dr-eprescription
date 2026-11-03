@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { auth } from "@/auth";
+import { apiRoute, jsonError } from "@/lib/api";
 import { canAccessPrescription } from "@/lib/auth-guards";
 import { buildVerifyUrl } from "@/lib/verify";
 import { renderPrescriptionPdf } from "@/lib/pdf";
 
-export async function GET(request, { params }) {
-  const { id } = await params;
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Not authorized" }, { status: 401 });
-
+export const GET = apiRoute({}, async (request, { id, session }) => {
   const rx = await prisma.prescription.findUnique({
     where: { id },
     include: {
@@ -20,10 +16,10 @@ export async function GET(request, { params }) {
       labTests: { include: { labTest: true } },
     },
   });
-  if (!rx) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!rx) return jsonError("Not found", 404);
 
   if (!canAccessPrescription(session, rx)) {
-    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    return jsonError("Not authorized", 403);
   }
 
   const verifyUrl = buildVerifyUrl(request.url, rx.prescriptionCode);
@@ -37,4 +33,4 @@ export async function GET(request, { params }) {
       "Content-Disposition": `inline; filename="${rx.prescriptionCode}.pdf"`,
     },
   });
-}
+});
