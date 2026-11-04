@@ -3,177 +3,69 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentDoctor } from "@/lib/auth-guards";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
-import { PatientProfileTabs } from "@/components/doctor/patient-tabs";
-import { Plus, Pencil, FileText, Calendar, User, Activity } from "lucide-react";
-import { formatDate } from "@/lib/datetime";
-import { SearchableSection } from "@/components/searchable-section";
+import { PageHeader, PageShell } from "@/components/ui/page-header";
+import { Plus, Pencil } from "lucide-react";
+import { HistoryList } from "@/components/lists/prescription-lists";
+import { historyRows } from "@/lib/lists";
+import { listStateFrom } from "@/lib/list-state";
+import { isUuid } from "@/lib/rules";
+import { formatAge, formatCalendarDate } from "@/lib/datetime";
 import { ResetPasswordButton } from "@/components/account/reset-password-button";
 
-export default async function PatientProfilePage({ params }) {
-  const { id } = await params;
-  const doctor = await getCurrentDoctor();
+const GENDER = { male: "Male", female: "Female", other: "Other" };
+
+// Allergies first and highlighted when present: they matter before prescribing.
+function PatientDetails({ patient }) {
+  const rows = [
+    ["Patient code", <span key="code" className="font-mono">{patient.patientCode}</span>],
+    ["Gender", GENDER[patient.gender] || patient.gender],
+    ["Age", formatAge(patient)],
+    ["Date of birth", patient.dateOfBirth ? `${formatCalendarDate(patient.dateOfBirth)}${patient.dobEstimated ? " (estimated)" : ""}` : "—"],
+    ["Phone", patient.phone],
+    ["Blood group", patient.bloodGroup || "—"],
+    ["CNIC", patient.cnic || "—"],
+    ["Emergency contact", patient.emergencyContact || "—"],
+    ["Existing conditions", patient.existingDiseases || "None recorded"],
+    ...(patient.allergies ? [] : [["Allergies", "None recorded"]]),
+  ];
+
+  return (
+    <section aria-label="Patient details" className="overflow-hidden rounded-lg border bg-card">
+      <dl className="-mb-px grid sm:grid-cols-2">
+        {patient.allergies ? (
+          <div className="border-b border-l-4 border-l-warning bg-warning/8 px-4 py-3 sm:col-span-2 sm:px-5">
+            <dt className="text-sm font-medium text-warning-strong">Allergies</dt>
+            <dd className="mt-0.5 text-sm font-medium text-foreground">{patient.allergies}</dd>
+          </div>
+        ) : null}
+        {rows.map(([label, value]) => (
+          <div key={label} className="border-b px-4 py-3 sm:px-5">
+            <dt className="text-sm text-muted-foreground">{label}</dt>
+            <dd className="mt-0.5 text-sm font-medium text-foreground">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+export default async function PatientProfilePage({ params, searchParams }) {
+  const [{ id }, query, doctor] = await Promise.all([params, searchParams, getCurrentDoctor()]);
   if (!doctor) return null; // layout shows the "profile not set up" message
+  if (!isUuid(id)) notFound();
 
   // Other doctors' prescriptions appear as summary rows only (no diagnosis,
-  // no link), and their drafts are hidden entirely.
-  const patient = await prisma.patient.findUnique({
-    where: { id },
-    include: {
-      prescriptions: {
-        where: { OR: [{ doctorId: doctor.id }, { status: "finalized" }] },
-        include: { doctor: true },
-        orderBy: { visitDate: "desc" },
-      },
-    },
-  });
+  // no link), and their drafts are hidden entirely (see historyRows).
+  const [patient, history] = await Promise.all([
+    prisma.patient.findUnique({ where: { id } }),
+    historyRows(id, { viewer: "doctor", doctorId: doctor.id, q: listStateFrom(query).q, page: listStateFrom(query).page }),
+  ]);
 
   if (!patient) notFound();
 
-  const details = [
-    ["Patient ID", patient.patientCode],
-    ["Gender", patient.gender],
-    ["Age", patient.age ?? "—"],
-    ["Phone", patient.phone],
-    ["Blood Group", patient.bloodGroup || "—"],
-    ["CNIC", patient.cnic || "—"],
-    ["Emergency Contact", patient.emergencyContact || "—"],
-    ["Allergies", patient.allergies || "None recorded"],
-    ["Existing Diseases", patient.existingDiseases || "None recorded"],
-  ];
-
-  const profileContent = (
-    <Card className="border-border/60 shadow-xs">
-      <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-8 sm:gap-y-4 pt-6">
-        {details.map(([label, value]) => (
-          <div key={label} className="p-3 rounded-lg bg-muted/30 border border-border/40">
-            <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider">{label}</p>
-            <p className="text-sm font-medium mt-1 text-foreground">{value}</p>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-
-  const historyContent = (
-    <div className="space-y-3">
-      <SearchableSection
-        placeholder="Search history by code, doctor or diagnosis"
-        index={patient.prescriptions.map((rx) => ({ key: rx.id, text: [rx.prescriptionCode, rx.doctor.fullName, rx.status, formatDate(rx.visitDate), rx.doctorId === doctor.id ? rx.diagnosis : ""].join(" ") }))}
-      >
-        {/* Mobile Cards (below md: 768px) */}
-        <div data-search-list className="md:hidden space-y-3">
-          {patient.prescriptions.map((rx) => (
-            <div key={rx.id} data-search-key={rx.id} className="border border-border/60 rounded-xl p-4 bg-card space-y-3 shadow-xs">
-              {/* Primary identifying info prominently at top */}
-              <div className="flex items-center justify-between gap-2 border-b pb-2.5">
-                <span className="font-semibold text-sm text-foreground flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-primary" strokeWidth={1.75} />
-                  {rx.prescriptionCode}
-                </span>
-                <span className={`text-xs px-2.5 py-1 rounded-full capitalize font-medium ${
-                  rx.status === "finalized"
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                }`}>
-                  {rx.status}
-                </span>
-              </div>
-
-              {/* Stacked Label: Value lines */}
-              <div className="space-y-1.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Visit Date:</span>
-                  <span className="font-medium text-foreground">{formatDate(rx.visitDate)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Doctor:</span>
-                  <span className="font-medium text-foreground">Dr. {rx.doctor.fullName}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Diagnosis:</span>
-                  <span className="font-medium text-foreground">{rx.doctorId === doctor.id ? rx.diagnosis || "—" : "—"}</span>
-                </div>
-              </div>
-
-              {/* Row-level action at bottom of card with min 44x44px touch target */}
-              {rx.doctorId === doctor.id && (
-                <div className="pt-2 border-t">
-                  <Button variant="outline" size="sm" className="w-full min-h-[44px] justify-center text-xs font-medium" nativeButton={false} render={<Link href={rx.status === "draft" ? `/doctor/prescriptions/${rx.id}/edit` : `/doctor/prescriptions/${rx.id}`}
-                    className="block" />}>
-                      {rx.status === "draft" ? "Edit Draft" : "View Prescription"}
-                    </Button>
-                </div>
-              )}
-            </div>
-          ))}
-          {patient.prescriptions.length === 0 && (
-            <div className="text-center text-muted-foreground py-12 border border-dashed rounded-xl bg-card">
-              <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-              <p className="text-sm font-medium">No prescriptions yet for this patient.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Desktop & Tablet Table (md: 768px+) */}
-        <div data-search-list className="hidden md:block border border-border/60 rounded-xl overflow-hidden bg-card shadow-xs">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead>Date</TableHead>
-                <TableHead>Doctor</TableHead>
-                <TableHead>Diagnosis</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {patient.prescriptions.map((rx) => (
-                <TableRow key={rx.id} data-search-key={rx.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="font-medium">
-                    {formatDate(rx.visitDate)}
-                  </TableCell>
-                  <TableCell>Dr. {rx.doctor.fullName}</TableCell>
-                  <TableCell>{rx.doctorId === doctor.id ? rx.diagnosis || "—" : "—"}</TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full capitalize font-medium ${
-                      rx.status === "finalized"
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                    }`}>
-                      {rx.status}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {rx.doctorId === doctor.id ? (
-                      <Button variant="ghost" size="sm" className="h-8 text-xs font-medium text-primary hover:text-primary hover:bg-primary/10" nativeButton={false} render={<Link href={rx.status === "draft" ? `/doctor/prescriptions/${rx.id}/edit` : `/doctor/prescriptions/${rx.id}`} />}>
-                          {rx.status === "draft" ? "Edit Draft" : "View"}
-                        </Button>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Other doctor</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {patient.prescriptions.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
-                    <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-                    <p className="text-sm font-medium">No prescriptions yet for this patient.</p>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </SearchableSection>
-    </div>
-  );
-
   return (
-    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full min-w-0">
+    <PageShell>
       <Breadcrumbs
         segments={[
           { label: "Patients", href: "/doctor/patients" },
@@ -181,31 +73,34 @@ export default async function PatientProfilePage({ params }) {
         ]}
       />
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{patient.fullName}</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground font-mono mt-0.5">{patient.patientCode}</p>
-        </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-          {patient.userId ? (
-            <ResetPasswordButton kind="patient" targetId={patient.id} name={patient.fullName} className="w-full sm:w-auto" />
-          ) : null}
-          <Button variant="outline" className="w-full sm:w-auto min-h-[44px]" nativeButton={false} render={<Link href={`/doctor/patients/${patient.id}/edit`} className="w-full sm:w-auto" />}>
-              <Pencil className="mr-2 h-4 w-4" strokeWidth={1.75} />
+      <PageHeader
+        title={patient.fullName}
+        description={<span className="font-mono">{patient.patientCode}</span>}
+        actions={
+          <>
+            {patient.userId ? (
+              <ResetPasswordButton kind="patient" targetId={patient.id} name={patient.fullName} />
+            ) : null}
+            <Button variant="outline" size="touch" nativeButton={false} render={<Link href={`/doctor/patients/${patient.id}/edit`} />}>
+              <Pencil strokeWidth={1.75} aria-hidden="true" />
               Edit
             </Button>
-          <Button className="w-full sm:w-auto min-h-[44px]" nativeButton={false} render={<Link href={`/doctor/prescriptions/new?patientId=${patient.id}`} className="w-full sm:w-auto" />}>
-              <Plus className="mr-2 h-4 w-4" strokeWidth={1.75} />
-              New Prescription
+            <Button size="touch" nativeButton={false} render={<Link href={`/doctor/prescriptions/new?patientId=${patient.id}`} />}>
+              <Plus strokeWidth={1.75} aria-hidden="true" />
+              New prescription
             </Button>
-        </div>
-      </div>
-
-      <PatientProfileTabs
-        profileContent={profileContent}
-        historyContent={historyContent}
-        historyCount={patient.prescriptions.length}
+          </>
+        }
       />
-    </div>
+
+      <PatientDetails patient={patient} />
+
+      <section>
+        <h2 className="mb-3 text-base font-semibold">
+          Prescription history <span className="font-normal text-muted-foreground">· {history.total}</span>
+        </h2>
+        <HistoryList rows={history.rows} server={history.server} viewer="doctor" initial={listStateFrom(query, ["owner", "status"])} />
+      </section>
+    </PageShell>
   );
 }

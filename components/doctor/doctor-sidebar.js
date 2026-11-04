@@ -9,6 +9,6 @@ const links = [
   { href: "/doctor/drafts", label: "Drafts", icon: FileEdit },
 ];
 
-export function DoctorSidebar() {
-  return <PortalSidebar links={links} subtitle="Doctor" breakpoint="md" />;
+export function DoctorSidebar({ user }) {
+  return <PortalSidebar links={links} subtitle="Doctor" user={user} />;
 }

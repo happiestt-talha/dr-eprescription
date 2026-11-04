@@ -2,40 +2,57 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
-import { CalendarPlus, Pencil, User } from "lucide-react";
-import { formatDate } from "@/lib/datetime";
+import { PageHeader, PageShell } from "@/components/ui/page-header";
+import { CalendarPlus, Pencil } from "lucide-react";
+import { formatAge, formatCalendarDate } from "@/lib/datetime";
 import { ResetPasswordButton } from "@/components/account/reset-password-button";
+import { HistoryList } from "@/components/lists/prescription-lists";
+import { historyRows } from "@/lib/lists";
+import { listStateFrom } from "@/lib/list-state";
+import { isUuid } from "@/lib/rules";
 
-export default async function ReceptionistPatientProfilePage({ params }) {
-  const { id } = await params;
+const GENDER = { male: "Male", female: "Female", other: "Other" };
 
-  const patient = await prisma.patient.findUnique({
-    where: { id },
-    include: {
-      prescriptions: {
-        include: { doctor: true },
-        orderBy: { visitDate: "desc" },
-        take: 10,
-      },
-    },
-  });
-
-  if (!patient) notFound();
-
-  const details = [
-    ["Patient ID", patient.patientCode],
-    ["Gender", patient.gender],
-    ["Age", patient.age ?? "—"],
+// Front-desk details only: clinical fields (allergies, conditions, blood group)
+// stay on the doctor's view of the patient.
+function PatientDetails({ patient }) {
+  const rows = [
+    ["Patient code", <span key="code" className="font-mono">{patient.patientCode}</span>],
+    ["Gender", GENDER[patient.gender] || patient.gender],
+    ["Age", formatAge(patient)],
+    ["Date of birth", patient.dateOfBirth ? `${formatCalendarDate(patient.dateOfBirth)}${patient.dobEstimated ? " (estimated)" : ""}` : "—"],
     ["Phone", patient.phone],
     ["CNIC", patient.cnic || "—"],
-    ["Emergency Contact", patient.emergencyContact || "—"],
+    ["Emergency contact", patient.emergencyContact || "—"],
   ];
 
   return (
-    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full min-w-0">
+    <section aria-label="Patient details" className="overflow-hidden rounded-lg border bg-card">
+      <dl className="-mb-px grid sm:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <div key={label} className="border-b px-4 py-3 sm:px-5">
+            <dt className="text-sm text-muted-foreground">{label}</dt>
+            <dd className="mt-0.5 text-sm font-medium text-foreground">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+export default async function ReceptionistPatientProfilePage({ params, searchParams }) {
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  if (!isUuid(id)) notFound();
+
+  // Full visit history (finalised prescriptions only: drafts are the doctor's
+  // work in progress), paged in the browser.
+  const [patient, visits] = await Promise.all([prisma.patient.findUnique({ where: { id } }), historyRows(id, { viewer: "receptionist", q: listStateFrom(query).q, page: listStateFrom(query).page })]);
+
+  if (!patient) notFound();
+
+  return (
+    <PageShell>
       <Breadcrumbs
         segments={[
           { label: "Patients", href: "/receptionist/patients" },
@@ -43,75 +60,34 @@ export default async function ReceptionistPatientProfilePage({ params }) {
         ]}
       />
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{patient.fullName}</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground font-mono mt-0.5">{patient.patientCode}</p>
-        </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-          {patient.userId ? (
-            <ResetPasswordButton kind="patient" targetId={patient.id} name={patient.fullName} className="w-full sm:w-auto" />
-          ) : null}
-          <Button variant="outline" className="w-full sm:w-auto min-h-[44px]" nativeButton={false} render={<Link href={`/receptionist/patients/${patient.id}/edit`} className="w-full sm:w-auto" />}>
-              <Pencil className="mr-2 h-4 w-4" strokeWidth={1.75} />
+      <PageHeader
+        title={patient.fullName}
+        description={<span className="font-mono">{patient.patientCode}</span>}
+        actions={
+          <>
+            {patient.userId ? (
+              <ResetPasswordButton kind="patient" targetId={patient.id} name={patient.fullName} />
+            ) : null}
+            <Button variant="outline" size="touch" nativeButton={false} render={<Link href={`/receptionist/patients/${patient.id}/edit`} />}>
+              <Pencil strokeWidth={1.75} aria-hidden="true" />
               Edit
             </Button>
-          <Button className="w-full sm:w-auto min-h-[44px]" nativeButton={false} render={<Link href={`/receptionist/appointments/new?patientId=${patient.id}`} className="w-full sm:w-auto" />}>
-              <CalendarPlus className="mr-2 h-4 w-4" strokeWidth={1.75} />
-              Book Appointment
+            <Button size="touch" nativeButton={false} render={<Link href={`/receptionist/appointments/new?patientId=${patient.id}`} />}>
+              <CalendarPlus strokeWidth={1.75} aria-hidden="true" />
+              Book appointment
             </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      <Card className="border-border/60 shadow-xs">
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-8 sm:gap-y-4 p-4 sm:p-6">
-          {details.map(([label, value]) => (
-            <div key={label} className="p-3 rounded-lg bg-muted/30 border border-border/40">
-              <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider">{label}</p>
-              <p className="text-sm font-medium mt-1 text-foreground">{value}</p>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      <PatientDetails patient={patient} />
 
-      <div>
-        <h2 className="text-base sm:text-lg font-semibold mb-3">Recent Visits</h2>
-        <div className="rounded-xl border border-border/60 overflow-x-auto w-full bg-card shadow-xs">
-          <Table className="min-w-[450px] w-full">
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead>Date</TableHead>
-                <TableHead>Doctor</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {patient.prescriptions.map((rx) => (
-                <TableRow key={rx.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="whitespace-nowrap font-medium">{formatDate(rx.visitDate)}</TableCell>
-                  <TableCell className="whitespace-nowrap">Dr. {rx.doctor.fullName}</TableCell>
-                  <TableCell className="capitalize">
-                    <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full capitalize font-medium ${
-                      rx.status === "finalized"
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                    }`}>
-                      {rx.status}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {patient.prescriptions.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
-                    No visit history yet.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-    </div>
+      <section>
+        <h2 className="mb-3 text-base font-semibold">
+          Visit history <span className="font-normal text-muted-foreground">· {visits.total}</span>
+        </h2>
+        <HistoryList rows={visits.rows} server={visits.server} viewer="receptionist" initial={listStateFrom(query)} />
+      </section>
+    </PageShell>
   );
 }

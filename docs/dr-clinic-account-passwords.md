@@ -6,8 +6,8 @@
 
 | Account | Role | New Password |
 |:---|:---|:---|
-| `admin@drclinic.pk` | Admin | `ivFSSPY8ew7E` |
-| `dr.ahmed.raza@drclinic.pk` | Doctor | `W-xtYfUu1wfG` |
+| `admin@drclinic.pk` | Admin | `#water@714` |
+| `dr.ahmed.raza@drclinic.pk` | Doctor | `#water@714` |
 | `dr.ayesha.siddiqui@drclinic.pk` | Doctor | `HzMInugpJzeh` |
 | `dr.bilal.khan@drclinic.pk` | Doctor | `j9D2IzGCqV4g` |
 | `dr.farhan.tariq@drclinic.pk` | Doctor | `d8siuUDsBQn-` |

@@ -1,14 +1,13 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createMedicine, updateMedicine, deleteMedicine } from "@/lib/actions/medicines";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "cn";
-import { Input } from "@/components/ui/input";
-import { StrengthInput } from "@/components/ui/form-inputs";
-import { Label } from "@/components/ui/label";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Field } from "@/components/ui/form-layout";
+import { Form, FormStatus, SubmitButton } from "@/components/ui/form";
+import { StrengthInput, TextInput } from "@/components/ui/form-inputs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -17,58 +16,39 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Pill, Building } from "lucide-react";
-import { SearchInput, SearchCount, NoMatches } from "@/components/ui/search-input";
-import { matches } from "@/lib/search";
+import { Plus, Pencil, Trash2, Pill } from "lucide-react";
+import { DataList } from "@/components/ui/data-list";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 const dosageForms = ["tablet", "syrup", "injection", "capsule", "cream", "drops", "inhaler", "other"];
 const DOSAGE_FORM_LABELS = Object.fromEntries(dosageForms.map((f) => [f, f[0].toUpperCase() + f.slice(1)]));
+const FILTERS = [{ key: "dosageForm", label: "Dosage forms", options: dosageForms.map((f) => ({ value: f, label: DOSAGE_FORM_LABELS[f] })) }];
 
-export function MedicinesTable({ medicines }) {
+export function MedicinesTable({ medicines, server, initial }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null); // null = add mode
-  const [error, setError] = useState("");
   const [deleteError, setDeleteError] = useState("");
-  const [query, setQuery] = useState("");
-  // Filters the list the page already loaded: instant, no server round trip.
-  const visible = useMemo(() => medicines.filter((m) => matches(query, m.name, m.genericName, m.dosageForm, m.strength, m.manufacturer)), [medicines, query]);
   const [isPending, startTransition] = useTransition();
 
   function openAdd() {
     setEditing(null);
-    setError("");
     setOpen(true);
   }
 
   function openEdit(medicine) {
     setEditing(medicine);
-    setError("");
     setOpen(true);
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError("");
-    const formData = new FormData(e.target);
-
-    startTransition(async () => {
-      try {
-      const res = editing
-        ? await updateMedicine(editing.id, formData)
-        : await createMedicine(formData);
-
-      if (res?.error) {
-        setError(res.error);
-        return;
-      }
-
+  // Validation and errors live in the dialog's <Form>; reopening starts clean.
+  async function handleSubmit(formData) {
+    const res = editing ? await updateMedicine(editing.id, formData) : await createMedicine(formData);
+    if (!res?.error) {
       setOpen(false);
       router.refresh();
-      } catch {
-        setError("Couldn't reach the server. Please try again.");
-      }
-    });
+    }
+    return res;
   }
 
   function handleDelete(id) {
@@ -82,10 +62,28 @@ export function MedicinesTable({ medicines }) {
         }
         router.refresh();
       } catch {
-        setDeleteError("Couldn't reach the server. Please try again.");
+        setDeleteError("Couldn't reach the server. Check your connection and try again.");
       }
     });
   }
+
+  const columns = [
+    {
+      key: "name",
+      header: "Brand name",
+      mobile: "title",
+      cell: (m) => (
+        <span className="flex items-center gap-1.5 font-semibold text-foreground">
+          <Pill className="size-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
+          {m.name}
+        </span>
+      ),
+    },
+    { key: "genericName", header: "Generic name", mobile: "subtitle", cell: (m) => m.genericName || "—" },
+    { key: "dosageForm", header: "Form", mobile: "badge", className: "capitalize", cell: (m) => (m.dosageForm ? <StatusBadge tone="neutral">{m.dosageForm}</StatusBadge> : "—") },
+    { key: "strength", header: "Strength", cell: (m) => m.strength || "—" },
+    { key: "manufacturer", header: "Manufacturer", className: "hidden lg:table-cell", cell: (m) => m.manufacturer || "—" },
+  ];
 
   return (
     <div className="space-y-4">
@@ -94,232 +92,105 @@ export function MedicinesTable({ medicines }) {
           {deleteError}
         </p>
       )}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3 w-full sm:max-w-sm">
-          <SearchInput value={query} onValueChange={setQuery} placeholder="Search medicines" />
-          <SearchCount shown={visible.length} total={medicines.length} query={query} />
-        </div>
-        <Button onClick={openAdd} className="w-full sm:w-auto min-h-[44px] shadow-xs">
-          <Plus className="mr-2 h-4 w-4" strokeWidth={1.75} />
-          Add Medicine
-        </Button>
-      </div>
-
-      {query && visible.length === 0 ? (
-        <NoMatches query={query} onClear={() => setQuery("")} />
-      ) : (
-        <>
-        {/* Mobile Card View (below md: 768px) */}
-        <div className="md:hidden space-y-3">
-          {visible.map((med) => (
-            <div key={med.id} className="border border-border/60 rounded-xl p-4 bg-card space-y-3 shadow-xs">
-              {/* Primary identifying info prominently at top */}
-              <div className="border-b pb-2.5 flex items-start justify-between">
-                <div>
-                  <h2 className="font-semibold text-base text-foreground flex items-center gap-1.5">
-                    <Pill className="h-4 w-4 text-primary shrink-0" strokeWidth={1.75} />
-                    {med.name}
-                  </h2>
-                  {med.genericName && (
-                    <p className="text-xs text-muted-foreground mt-0.5 font-mono">{med.genericName}</p>
-                  )}
-                </div>
-                {med.dosageForm && (
-                  <span className="text-xs px-2 py-0.5 rounded-full capitalize font-medium bg-muted text-muted-foreground">
-                    {med.dosageForm}
-                  </span>
-                )}
-              </div>
-
-              {/* Stacked Label: Value lines */}
-              <div className="space-y-1.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Strength:</span>
-                  <span className="font-medium text-foreground">{med.strength || "—"}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Manufacturer:</span>
-                  <span className="font-medium text-foreground">{med.manufacturer || "—"}</span>
-                </div>
-              </div>
-
-              {/* Row-level actions at bottom of card */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openEdit(med)}
-                  className="min-h-[44px] px-3 flex items-center gap-1.5 text-xs"
-                >
-                  <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  <span>Edit</span>
-                </Button>
-
-                <AlertDialog>
-                  <AlertDialogTrigger
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "sm" }),
-                      "min-h-[44px] px-3 text-destructive hover:text-destructive hover:bg-destructive/10 flex items-center gap-1.5 text-xs"
-                    )}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                    <span>Delete</span>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete {med.name}?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. Medicines already used in a prescription cannot be deleted.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
-                      <AlertDialogCancel className="w-full sm:w-auto min-h-[44px]">Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => handleDelete(med.id)} className="w-full sm:w-auto min-h-[44px] bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </div>
-          ))}
-          {medicines.length === 0 && (
-            <div className="text-center text-muted-foreground py-12 border border-dashed rounded-xl bg-card">
-              <Pill className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" strokeWidth={1.5} />
-              <p className="font-medium text-foreground">No medicines found</p>
-              <p className="text-xs text-muted-foreground mt-1">Add medicines to the clinic formulary to begin prescribing.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Desktop & Tablet Table View (md: 768px+) */}
-        <div className="hidden md:block border border-border/60 rounded-xl overflow-hidden bg-card shadow-xs">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead>Brand Name</TableHead>
-                <TableHead>Generic Name</TableHead>
-                <TableHead>Form</TableHead>
-                <TableHead>Strength</TableHead>
-                <TableHead>Manufacturer</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.map((med) => (
-                <TableRow key={med.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="font-semibold text-foreground">{med.name}</TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{med.genericName || "—"}</TableCell>
-                  <TableCell className="capitalize">
-                    {med.dosageForm ? (
-                      <span className="text-xs px-2 py-0.5 rounded-md font-medium bg-muted/80 text-muted-foreground">
-                        {med.dosageForm}
-                      </span>
-                    ) : "—"}
-                  </TableCell>
-                  <TableCell>{med.strength || "—"}</TableCell>
-                  <TableCell>{med.manufacturer || "—"}</TableCell>
-                  <TableCell className="text-right space-x-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(med)} aria-label={`Edit ${med.name}`} className="min-h-[36px] min-w-[36px] hover:bg-muted text-muted-foreground hover:text-foreground">
-                      <Pencil className="h-4 w-4" strokeWidth={1.75} />
-                    </Button>
-
-                    <AlertDialog>
-                      <AlertDialogTrigger
-                        className={cn(
-                          buttonVariants({ variant: "ghost", size: "icon" }),
-                          "min-h-[36px] min-w-[36px] text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        )}
-                        aria-label={`Delete ${med.name}`}
-                      >
-                        <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                      </AlertDialogTrigger>
-                      <AlertDialogContent className="rounded-xl">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete {med.name}?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This action cannot be undone. Medicines already used in a prescription cannot be deleted.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(med.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {medicines.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-16">
-                    <Pill className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" strokeWidth={1.5} />
-                    <p className="font-medium text-foreground">No medicines found</p>
-                    <p className="text-xs text-muted-foreground mt-1">Add medicines to the clinic formulary to begin prescribing.</p>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        </>
-      )}
+      <DataList
+        rows={medicines}
+        initial={initial}
+        server={server}
+        columns={columns}
+        filters={FILTERS}
+        noun="medicines"
+        searchPlaceholder="Search brand, generic name, form, strength or maker"
+        empty={{ icon: Pill, title: "No medicines yet", text: "Add medicines to the clinic formulary to begin prescribing." }}
+        toolbar={
+          <Button onClick={openAdd} className="min-h-[44px] w-full shadow-xs sm:w-auto md:min-h-9">
+            <Plus className="mr-2 h-4 w-4" strokeWidth={1.75} />
+            Add medicine
+          </Button>
+        }
+        actions={(row) => (
+          <>
+            <Button variant="ghost" size="sm" onClick={() => openEdit(row)} aria-label={`Edit ${row.name}`} className="h-9 gap-1.5 text-xs">
+              <Pencil className="size-3.5" aria-hidden="true" /> Edit
+            </Button>
+            <DeleteButton name={row.name} note="This can't be undone. Medicines already used in a prescription can't be deleted." onConfirm={() => handleDelete(row.id)} />
+          </>
+        )}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto rounded-xl">
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <Form key={editing?.id ?? "new"} onSubmit={handleSubmit} keepPendingOnSuccess={false} className="space-y-4">
             <DialogHeader>
-              <DialogTitle className="text-lg font-bold">{editing ? "Edit Medicine" : "Add Medicine"}</DialogTitle>
+              <DialogTitle className="text-lg font-semibold">{editing ? "Edit medicine" : "Add medicine"}</DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-2">
-              <Label htmlFor="name">Brand Name</Label>
-              <Input id="name" name="name" maxLength={120} defaultValue={editing?.name || ""} required placeholder="e.g., Augmentin" />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Brand name" htmlFor="name" required span="full">
+                <TextInput id="name" name="name" label="Brand name" maxLength={120} defaultValue={editing?.name || ""} required placeholder="e.g. Augmentin" className="h-11 md:h-10" />
+              </Field>
+              <Field label="Generic name" htmlFor="genericName" span="full">
+                <TextInput id="genericName" name="genericName" maxLength={120} defaultValue={editing?.genericName || ""} placeholder="e.g. Co-amoxiclav" className="h-11 md:h-10" />
+              </Field>
+              <Field label="Dosage form" htmlFor="dosageForm">
+                <Select name="dosageForm" defaultValue={editing?.dosageForm || undefined} items={DOSAGE_FORM_LABELS}>
+                  <SelectTrigger id="dosageForm" className="h-11 w-full md:h-10">
+                    <SelectValue placeholder="Select a form" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dosageForms.map((f) => (
+                      <SelectItem key={f} value={f} className="capitalize">
+                        {f}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Strength" htmlFor="strength">
+                <StrengthInput id="strength" name="strength" placeholder="e.g. 625mg" defaultValue={editing?.strength || ""} className="h-11 md:h-10" />
+              </Field>
+              <Field label="Manufacturer" htmlFor="manufacturer" span="full">
+                <TextInput id="manufacturer" name="manufacturer" maxLength={120} defaultValue={editing?.manufacturer || ""} placeholder="e.g. GSK" className="h-11 md:h-10" />
+              </Field>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="genericName">Generic Name</Label>
-              <Input id="genericName" name="genericName" maxLength={120} defaultValue={editing?.genericName || ""} placeholder="e.g., Co-amoxiclav" />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="dosageForm">Dosage Form</Label>
-              <Select name="dosageForm" defaultValue={editing?.dosageForm || undefined} items={DOSAGE_FORM_LABELS}>
-                <SelectTrigger id="dosageForm">
-                  <SelectValue placeholder="Select a form" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dosageForms.map((f) => (
-                    <SelectItem key={f} value={f} className="capitalize">
-                      {f}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="strength">Strength / Concentration</Label>
-              <StrengthInput id="strength" name="strength" placeholder="e.g., 625mg, 125mg/5ml" defaultValue={editing?.strength || ""} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="manufacturer">Manufacturer / Pharma Company</Label>
-              <Input id="manufacturer" name="manufacturer" maxLength={120} defaultValue={editing?.manufacturer || ""} placeholder="e.g., GSK" />
-            </div>
-
-            {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}
+            <FormStatus variant="dialog" />
 
             <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
-              <Button type="submit" disabled={isPending} className="w-full sm:w-auto min-h-[44px]">
-                {isPending ? "Saving..." : editing ? "Save Changes" : "Add Medicine"}
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} className="h-11 w-full px-5 sm:w-auto">
+                Cancel
               </Button>
+              <SubmitButton pendingText="Saving…" className="h-11 w-full px-6 sm:w-auto">
+                {editing ? "Save changes" : "Add medicine"}
+              </SubmitButton>
             </DialogFooter>
-          </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** Delete with a confirmation step. */
+function DeleteButton({ name, note, onConfirm }) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger
+        aria-label={`Delete ${name}`}
+        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-9 gap-1.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive")}>
+        <Trash2 className="size-3.5" aria-hidden="true" /> Delete
+      </AlertDialogTrigger>
+      <AlertDialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete {name}?</AlertDialogTitle>
+          <AlertDialogDescription>{note}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <AlertDialogCancel className="min-h-[44px] w-full sm:w-auto">Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm} className="min-h-[44px] w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto">
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

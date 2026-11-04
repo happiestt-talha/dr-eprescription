@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { createLabTest, updateLabTest, deleteLabTest } from "@/lib/actions/lab-tests";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "cn";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Field } from "@/components/ui/form-layout";
+import { Form, FormStatus, SubmitButton } from "@/components/ui/form";
+import { TextInput } from "@/components/ui/form-inputs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -15,55 +15,35 @@ import {
   AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
   AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, FlaskConical, Tag } from "lucide-react";
-import { SearchInput, SearchCount, NoMatches } from "@/components/ui/search-input";
-import { matches } from "@/lib/search";
+import { Plus, Pencil, Trash2, FlaskConical } from "lucide-react";
+import { DataList } from "@/components/ui/data-list";
+import { StatusBadge } from "@/components/ui/status-badge";
 
-export function LabTestsTable({ labTests }) {
+export function LabTestsTable({ labTests, server, initial }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [error, setError] = useState("");
   const [deleteError, setDeleteError] = useState("");
-  const [query, setQuery] = useState("");
-  // Filters the list the page already loaded: instant, no server round trip.
-  const visible = useMemo(() => labTests.filter((t) => matches(query, t.name, t.category, t.normalRange)), [labTests, query]);
   const [isPending, startTransition] = useTransition();
 
   function openAdd() {
     setEditing(null);
-    setError("");
     setOpen(true);
   }
 
   function openEdit(labTest) {
     setEditing(labTest);
-    setError("");
     setOpen(true);
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError("");
-    const formData = new FormData(e.target);
-
-    startTransition(async () => {
-      try {
-      const res = editing
-        ? await updateLabTest(editing.id, formData)
-        : await createLabTest(formData);
-
-      if (res?.error) {
-        setError(res.error);
-        return;
-      }
-
+  // Validation and errors live in the dialog's <Form>; reopening starts clean.
+  async function handleSubmit(formData) {
+    const res = editing ? await updateLabTest(editing.id, formData) : await createLabTest(formData);
+    if (!res?.error) {
       setOpen(false);
       router.refresh();
-      } catch {
-        setError("Couldn't reach the server. Please try again.");
-      }
-    });
+    }
+    return res;
   }
 
   function handleDelete(id) {
@@ -77,10 +57,31 @@ export function LabTestsTable({ labTests }) {
         }
         router.refresh();
       } catch {
-        setDeleteError("Couldn't reach the server. Please try again.");
+        setDeleteError("Couldn't reach the server. Check your connection and try again.");
       }
     });
   }
+
+  const columns = [
+    {
+      key: "name",
+      header: "Test",
+      mobile: "title",
+      cell: (t) => (
+        <span className="flex items-center gap-1.5 font-semibold text-foreground">
+          <FlaskConical className="size-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
+          {t.name}
+        </span>
+      ),
+    },
+    { key: "category", header: "Category", mobile: "badge", cell: (t) => (t.category ? <StatusBadge tone="neutral">{t.category}</StatusBadge> : "—") },
+    { key: "normalRange", header: "Normal range", cell: (t) => t.normalRange || "—" },
+  ];
+  // Category filter from the categories actually in use.
+  const categoryFilter = useMemo(() => {
+    const cats = [...new Set(labTests.map((t) => t.category).filter(Boolean))].sort();
+    return cats.length ? [{ key: "category", label: "Categories", options: cats.map((c) => ({ value: c, label: c })) }] : [];
+  }, [labTests]);
 
   return (
     <div className="space-y-4">
@@ -89,213 +90,88 @@ export function LabTestsTable({ labTests }) {
           {deleteError}
         </p>
       )}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3 w-full sm:max-w-sm">
-          <SearchInput value={query} onValueChange={setQuery} placeholder="Search lab tests" />
-          <SearchCount shown={visible.length} total={labTests.length} query={query} />
-        </div>
-        <Button onClick={openAdd} className="w-full sm:w-auto min-h-[44px] shadow-xs">
-          <Plus className="mr-2 h-4 w-4" strokeWidth={1.75} />
-          Add Lab Test
-        </Button>
-      </div>
-
-      {query && visible.length === 0 ? (
-        <NoMatches query={query} onClear={() => setQuery("")} />
-      ) : (
-        <>
-        {/* Mobile Card View (below md: 768px) */}
-        <div className="md:hidden space-y-3">
-          {visible.map((test) => (
-            <div key={test.id} className="border border-border/60 rounded-xl p-4 bg-card space-y-3 shadow-xs">
-              {/* Primary identifying info prominently at top */}
-              <div className="border-b pb-2.5 flex items-start justify-between">
-                <div>
-                  <h2 className="font-semibold text-base text-foreground flex items-center gap-1.5">
-                    <FlaskConical className="h-4 w-4 text-primary shrink-0" strokeWidth={1.75} />
-                    {test.name}
-                  </h2>
-                </div>
-                <span className="text-xs px-2 py-0.5 rounded-full capitalize font-medium bg-muted text-muted-foreground">
-                  {test.category || "General"}
-                </span>
-              </div>
-
-              {/* Stacked Label: Value lines */}
-              <div className="space-y-1.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Normal Range:</span>
-                  <span className="font-medium text-foreground">{test.normalRange || "—"}</span>
-                </div>
-              </div>
-
-              {/* Row-level actions at bottom of card */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openEdit(test)}
-                  className="min-h-[44px] px-3 flex items-center gap-1.5 text-xs"
-                >
-                  <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  <span>Edit</span>
-                </Button>
-
-                <AlertDialog>
-                  <AlertDialogTrigger
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "sm" }),
-                      "min-h-[44px] px-3 text-destructive hover:text-destructive hover:bg-destructive/10 flex items-center gap-1.5 text-xs"
-                    )}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                    <span>Delete</span>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete {test.name}?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. Tests already used in a prescription cannot be deleted.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
-                      <AlertDialogCancel className="w-full sm:w-auto min-h-[44px]">Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => handleDelete(test.id)} className="w-full sm:w-auto min-h-[44px] bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </div>
-          ))}
-          {labTests.length === 0 && (
-            <div className="text-center text-muted-foreground py-12 border border-dashed rounded-xl bg-card">
-              <FlaskConical className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" strokeWidth={1.5} />
-              <p className="font-medium text-foreground">No laboratory tests found</p>
-              <p className="text-xs text-muted-foreground mt-1">Add diagnostic and lab tests to the clinic catalog.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Desktop & Tablet Table View (md: 768px+) */}
-        <div className="hidden md:block border border-border/60 rounded-xl overflow-hidden bg-card shadow-xs">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead>Test Name</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Normal Range / Standard</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.map((test) => (
-                <TableRow key={test.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="font-semibold text-foreground">
-                    <div className="flex items-center gap-2">
-                      <FlaskConical className="h-4 w-4 text-primary shrink-0" strokeWidth={1.75} />
-                      {test.name}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-xs px-2 py-0.5 rounded-md font-medium bg-muted/80 text-muted-foreground">
-                      {test.category || "General"}
-                    </span>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{test.normalRange || "—"}</TableCell>
-                  <TableCell className="text-right space-x-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(test)} aria-label={`Edit ${test.name}`} className="min-h-[36px] min-w-[36px] hover:bg-muted text-muted-foreground hover:text-foreground">
-                      <Pencil className="h-4 w-4" strokeWidth={1.75} />
-                    </Button>
-
-                    <AlertDialog>
-                      <AlertDialogTrigger
-                        className={cn(
-                          buttonVariants({ variant: "ghost", size: "icon" }),
-                          "min-h-[36px] min-w-[36px] text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        )}
-                        aria-label={`Delete ${test.name}`}
-                      >
-                        <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                      </AlertDialogTrigger>
-                      <AlertDialogContent className="rounded-xl">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete {test.name}?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This action cannot be undone. Tests already used in a prescription cannot be deleted.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(test.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {labTests.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-16">
-                    <FlaskConical className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" strokeWidth={1.5} />
-                    <p className="font-medium text-foreground">No laboratory tests found</p>
-                    <p className="text-xs text-muted-foreground mt-1">Add diagnostic and lab tests to the clinic catalog.</p>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        </>
-      )}
+      <DataList
+        rows={labTests}
+        initial={initial}
+        server={server}
+        columns={columns}
+        filters={categoryFilter}
+        noun="lab tests"
+        searchPlaceholder="Search test name, category or range"
+        empty={{ icon: FlaskConical, title: "No lab tests yet", text: "Add the tests doctors can order on a prescription." }}
+        toolbar={
+          <Button onClick={openAdd} className="min-h-[44px] w-full shadow-xs sm:w-auto md:min-h-9">
+            <Plus className="mr-2 h-4 w-4" strokeWidth={1.75} />
+            Add lab test
+          </Button>
+        }
+        actions={(row) => (
+          <>
+            <Button variant="ghost" size="sm" onClick={() => openEdit(row)} aria-label={`Edit ${row.name}`} className="h-9 gap-1.5 text-xs">
+              <Pencil className="size-3.5" aria-hidden="true" /> Edit
+            </Button>
+            <DeleteButton name={row.name} note="This can't be undone. Tests already used in a prescription can't be deleted." onConfirm={() => handleDelete(row.id)} />
+          </>
+        )}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md max-h-[90vh] overflow-y-auto rounded-xl">
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <Form key={editing?.id ?? "new"} onSubmit={handleSubmit} keepPendingOnSuccess={false} className="space-y-4">
             <DialogHeader>
-              <DialogTitle className="text-lg font-bold">{editing ? "Edit Lab Test" : "Add Lab Test"}</DialogTitle>
+              <DialogTitle className="text-lg font-semibold">{editing ? "Edit lab test" : "Add lab test"}</DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-2">
-              <Label htmlFor="name">Test Name</Label>
-              <Input id="name" name="name" maxLength={120} defaultValue={editing?.name || ""} required placeholder="e.g., Complete Blood Count (CBC)" />
+            <div className="grid grid-cols-1 gap-4">
+              <Field label="Test name" htmlFor="name" required>
+                <TextInput id="name" name="name" label="Test name" maxLength={120} defaultValue={editing?.name || ""} required placeholder="e.g. Complete Blood Count (CBC)" className="h-11 md:h-10" />
+              </Field>
+              <Field label="Category" htmlFor="category">
+                <TextInput id="category" name="category" maxLength={60} placeholder="e.g. Haematology" defaultValue={editing?.category || ""} className="h-11 md:h-10" />
+              </Field>
+              <Field label="Normal reference range" htmlFor="normalRange">
+                <TextInput id="normalRange" name="normalRange" maxLength={120} placeholder="e.g. 4.5–11.0 x10⁹/L" defaultValue={editing?.normalRange || ""} className="h-11 md:h-10" />
+              </Field>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
-                name="category"
-                maxLength={60}
-                placeholder="e.g., Hematology, Biochemistry, Radiology"
-                defaultValue={editing?.category || ""}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="normalRange">Normal Reference Range</Label>
-              <Input
-                id="normalRange"
-                name="normalRange"
-                maxLength={120}
-                placeholder="e.g. 4.5–11.0 x10⁹/L"
-                defaultValue={editing?.normalRange || ""}
-              />
-            </div>
-
-            {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}
+            <FormStatus variant="dialog" />
 
             <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
-              <Button type="submit" disabled={isPending} className="w-full sm:w-auto min-h-[44px]">
-                {isPending ? "Saving..." : editing ? "Save Changes" : "Add Lab Test"}
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} className="h-11 w-full px-5 sm:w-auto">
+                Cancel
               </Button>
+              <SubmitButton pendingText="Saving…" className="h-11 w-full px-6 sm:w-auto">
+                {editing ? "Save changes" : "Add lab test"}
+              </SubmitButton>
             </DialogFooter>
-          </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** Delete with a confirmation step. */
+function DeleteButton({ name, note, onConfirm }) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger
+        aria-label={`Delete ${name}`}
+        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-9 gap-1.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive")}>
+        <Trash2 className="size-3.5" aria-hidden="true" /> Delete
+      </AlertDialogTrigger>
+      <AlertDialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete {name}?</AlertDialogTitle>
+          <AlertDialogDescription>{note}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <AlertDialogCancel className="min-h-[44px] w-full sm:w-auto">Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm} className="min-h-[44px] w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto">
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

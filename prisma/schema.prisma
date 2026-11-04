@@ -102,6 +102,9 @@ model Patient {
   fatherHusbandName  String?
   gender             Gender
   dateOfBirth        DateTime?
+  /// true when dateOfBirth was derived from an approximate age (1 January of that year)
+  dobEstimated       Boolean   @default(false)
+  /// Legacy: age at registration. Display age is calculated from dateOfBirth (lib/datetime.js ageFromDob).
   age                Int?
   phone              String    @unique
   email              String?
@@ -158,6 +161,8 @@ model Prescription {
   medicines          PrescriptionMedicine[]
   labTests           PrescriptionLabTest[]
 
+  @@index([doctorId, status])
+  @@index([patientId, visitDate])
   @@map("prescriptions")
 }
 
@@ -223,6 +228,8 @@ model Appointment {
   bookedByUser User?            @relation(fields: [bookedBy], references: [id])
   createdAt   DateTime          @default(now())
 
+  @@index([scheduledAt])
+  @@index([patientId, scheduledAt])
   @@map("appointments")
 }
 
@@ -236,6 +243,8 @@ model AuditLog {
   details    Json?
   createdAt  DateTime @default(now())
 
+  @@index([createdAt])
+  @@index([entityType, action])
   @@map("audit_logs")
 }
 
@@ -249,5 +258,6 @@ model Report {
   generatedByUser User      @relation(fields: [generatedBy], references: [id])
   generatedAt  DateTime     @default(now())
 
+  @@index([generatedAt])
   @@map("reports")
 }

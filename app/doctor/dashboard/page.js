@@ -1,128 +1,124 @@
+import { Panel, PanelEmpty } from "@/components/ui/panel";
 import Link from "next/link";
-import { prisma } from "@/lib/db";
 import { getCurrentDoctor } from "@/lib/auth-guards";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { PageHeader, PageShell } from "@/components/ui/page-header";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import {
-  Users,
-  CalendarDays,
-  FileText,
-  FilePlus2,
-  FilePen,
-  UserPlus,
-  Plus,
-} from "lucide-react";
-import { startOfClinicDay } from "@/lib/datetime";
+import { doctorDashboard } from "@/lib/dashboard";
+
+
+
+// Appointments still to be seen get the prescription action; the rest link to the patient.
+const OPEN = new Set(["pending", "confirmed"]);
 
 export default async function DoctorDashboard() {
   const doctor = await getCurrentDoctor();
   if (!doctor) return null; // layout shows the "profile not set up" message
-  const today = startOfClinicDay();
-  const tomorrow = startOfClinicDay(new Date(), 1);
+  const { appointments, drafts, draftCount, recent, counts } = await doctorDashboard(doctor.id);
 
-  const [
-    totalPatients,
-    todaysAppointments,
-    totalPrescriptions,
-    todaysPrescriptions,
-    pendingDrafts,
-  ] = await Promise.all([
-    prisma.prescription.groupBy({ by: ["patientId"], where: { doctorId: doctor.id } }).then((r) => r.length),
-    prisma.appointment.count({
-      where: { doctorId: doctor.id, scheduledAt: { gte: today, lt: tomorrow } },
-    }),
-    prisma.prescription.count({ where: { doctorId: doctor.id } }),
-    prisma.prescription.count({ where: { doctorId: doctor.id, createdAt: { gte: today } } }),
-    prisma.prescription.count({ where: { doctorId: doctor.id, status: "draft" } }),
-  ]);
-
-  const stats = [
-    {
-      label: "Patients Seen",
-      value: totalPatients,
-      icon: Users,
-      color: "text-blue-600 dark:text-blue-400",
-      bg: "bg-blue-500/10 dark:bg-blue-500/20",
-      border: "border-blue-500/20",
-    },
-    {
-      label: "Today's Appointments",
-      value: todaysAppointments,
-      icon: CalendarDays,
-      color: "text-violet-600 dark:text-violet-400",
-      bg: "bg-violet-500/10 dark:bg-violet-500/20",
-      border: "border-violet-500/20",
-    },
-    {
-      label: "Total Prescriptions",
-      value: totalPrescriptions,
-      icon: FileText,
-      color: "text-emerald-600 dark:text-emerald-400",
-      bg: "bg-emerald-500/10 dark:bg-emerald-500/20",
-      border: "border-emerald-500/20",
-    },
-    {
-      label: "Today's Prescriptions",
-      value: todaysPrescriptions,
-      icon: FilePlus2,
-      color: "text-teal-600 dark:text-teal-400",
-      bg: "bg-teal-500/10 dark:bg-teal-500/20",
-      border: "border-teal-500/20",
-    },
-    {
-      label: "Draft Prescriptions",
-      value: pendingDrafts,
-      icon: FilePen,
-      color: "text-amber-600 dark:text-amber-400",
-      bg: "bg-amber-500/10 dark:bg-amber-500/20",
-      border: "border-amber-500/20",
-    },
-  ];
+  const toSee = appointments.filter((a) => OPEN.has(a.status)).length;
+  const summary = [
+    `${appointments.length} ${appointments.length === 1 ? "appointment" : "appointments"} today`,
+    `${toSee} still to see`,
+    `${counts.prescriptionsToday} finalised today`,
+    `${draftCount} ${draftCount === 1 ? "draft" : "drafts"}`,
+    `${counts.patientsSeen} patients seen in total`,
+  ].join(" · ");
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Clinical Dashboard</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Welcome back, Dr. {doctor.fullName} · {doctor.specialization}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="min-h-[40px] text-xs sm:text-sm" nativeButton={false} render={<Link href="/doctor/patients/new" />}>
-              <UserPlus className="mr-2 h-4 w-4" strokeWidth={1.75} />
-              Register Patient
-            </Button>
-          <Button className="min-h-[40px] text-xs sm:text-sm shadow-xs" nativeButton={false} render={<Link href="/doctor/patients" />}>
-              <Plus className="mr-2 h-4 w-4" strokeWidth={1.75} />
-              New Prescription
-            </Button>
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Dashboard"
+        description={`Dr. ${doctor.fullName} · ${doctor.specialization}`}
+        actions={
+          <Button size="touch" nativeButton={false} render={<Link href="/doctor/patients" />}>
+            New prescription
+          </Button>
+        }
+      />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Card
-              key={stat.label}
-              className={`border ${stat.border} shadow-xs hover:shadow-sm transition-all duration-200 hover:-translate-y-0.5`}
-            >
-              <CardHeader className="flex flex-row items-center justify-between p-4 pb-2 sm:p-5 sm:pb-2 space-y-0">
-                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
-                  {stat.label}
-                </CardTitle>
-                <div className={`p-2 rounded-lg ${stat.bg} ${stat.color} transition-colors`}>
-                  <Icon className="h-4 w-4" strokeWidth={1.75} />
-                </div>
-              </CardHeader>
-              <CardContent className="p-4 pt-0 sm:p-5 sm:pt-0">
-                <p className="text-2xl sm:text-3xl font-bold tracking-tight">{stat.value}</p>
-              </CardContent>
-            </Card>
-          );
-        })}
+      <p className="text-sm text-muted-foreground tabular-nums">{summary}</p>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
+        <Panel title="Today's appointments">
+          {appointments.length === 0 ? (
+            <div className="px-4 py-10 text-center">
+              <p className="text-sm font-medium">No appointments today</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Walk-in? Find the patient in{" "}
+                <Link href="/doctor/patients" className="font-medium text-primary underline-offset-2 hover:underline">
+                  Patients
+                </Link>
+                .
+              </p>
+            </div>
+          ) : (
+            <ul className="divide-y">
+              {appointments.map((a) => (
+                <li key={a.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center">
+                  <div className="flex min-w-0 flex-1 items-center gap-4">
+                    <span className="w-16 shrink-0 text-sm font-medium tabular-nums">{a.time}</span>
+                    <Link href={`/doctor/patients/${a.patientId}`} className="min-w-0 flex-1 underline-offset-2 hover:underline">
+                      <span className="block truncate text-sm font-medium">{a.patientName}</span>
+                      <span className="block truncate font-mono text-xs text-muted-foreground">{a.patientCode}</span>
+                    </Link>
+                    <StatusBadge status={a.status} />
+                  </div>
+                  {OPEN.has(a.status) ? (
+                    <Button
+                      size="touch"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      nativeButton={false}
+                      render={<Link href={`/doctor/prescriptions/new?patientId=${a.patientId}`} />}>
+                      Start prescription
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+
+        <div className="min-w-0 space-y-6">
+          <Panel title="Drafts" href={draftCount > 0 ? "/doctor/drafts" : undefined}>
+            {drafts.length === 0 ? (
+              <PanelEmpty>No drafts waiting.</PanelEmpty>
+            ) : (
+              <ul className="divide-y">
+                {drafts.map((rx) => (
+                  <li key={rx.id}>
+                    <Link href={`/doctor/prescriptions/${rx.id}/edit`} className="block px-4 py-3 transition-colors hover:bg-muted/40">
+                      <span className="block truncate text-sm font-medium">{rx.patientName}</span>
+                      <span className="block truncate text-xs text-muted-foreground tabular-nums">Started {rx.started}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel title="Recent prescriptions">
+            {recent.length === 0 ? (
+              <PanelEmpty>No finalised prescriptions yet.</PanelEmpty>
+            ) : (
+              <ul className="divide-y">
+                {recent.map((rx) => (
+                  <li key={rx.id}>
+                    <Link href={`/doctor/prescriptions/${rx.id}`} className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/40">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium">{rx.patientName}</span>
+                        <span className="block truncate font-mono text-xs text-muted-foreground">{rx.code}</span>
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{rx.date}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+        </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

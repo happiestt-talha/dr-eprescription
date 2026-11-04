@@ -3,75 +3,57 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { generateReport } from "@/lib/actions/reports";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Form, FormStatus, SubmitButton } from "@/components/ui/form";
+import { Field } from "@/components/ui/form-layout";
+import { DatePicker } from "@/components/ui/date-picker";
+import { clinicDateKey } from "@/lib/datetime";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
-import { FileBarChart, Sparkles } from "lucide-react";
 
 const reportTypes = [
-  { value: "patients", label: "Patients Report" },
-  { value: "prescriptions", label: "Prescriptions Report" },
-  { value: "appointments", label: "Appointments Report" },
-  { value: "doctors", label: "Doctors Directory" },
-  { value: "medicines", label: "Medicines Formulary" },
+  { value: "patients", label: "Patients report" },
+  { value: "prescriptions", label: "Prescriptions report" },
+  { value: "appointments", label: "Appointments report" },
+  { value: "doctors", label: "Doctors report" },
+  { value: "medicines", label: "Medicines report" },
 ];
 
-export function ReportGeneratorForm({ doctors }) {
+export function ReportGeneratorForm({ doctorItems }) {
   const router = useRouter();
   const [reportType, setReportType] = useState("patients");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const [readyUrl, setReadyUrl] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
   const showDoctorFilter = reportType === "prescriptions" || reportType === "appointments";
   const showDateFilter = reportType !== "doctors" && reportType !== "medicines";
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError("");
+  async function handleSubmit(formData) {
     setReadyUrl("");
-    setLoading(true);
-
-    try {
-      const res = await generateReport(new FormData(e.target));
-      if (res?.error) {
-        setError(res.error);
-        return;
-      }
+    const res = await generateReport(formData);
+    if (!res?.error) {
       // A link instead of window.open: browsers block pop-ups opened after an await.
       setReadyUrl(res.fileUrl);
       router.refresh();
-    } catch {
-      setError("Couldn't reach the server. Please try again.");
-    } finally {
-      setLoading(false);
     }
+    return res;
   }
 
   const reportTypeLabels = Object.fromEntries(reportTypes.map((t) => [t.value, t.label]));
-  const doctorItems = doctors.map((d) => ({ value: d.id, label: `Dr. ${d.fullName}`, detail: d.specialization || "" }));
 
   return (
-    <Card className="border-border/60 shadow-xs">
-      <CardContent className="p-4 sm:p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
-            <FileBarChart className="h-5 w-5" strokeWidth={1.75} />
-          </div>
-          <div>
-            <h2 className="text-base font-bold text-foreground">Generate New Report</h2>
-            <p className="text-xs text-muted-foreground">Select report scope, format, and optional date range.</p>
-          </div>
+    <section className="rounded-lg border bg-card p-4 sm:p-6">
+        <div className="mb-4">
+          <h2 className="text-base font-semibold text-foreground">Generate report</h2>
+          <p className="text-sm text-muted-foreground">The date range is optional.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-end">
+        <Form onSubmit={handleSubmit} keepPendingOnSuccess={false} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
           <div className="space-y-1.5">
-            <Label htmlFor="reportType" className="text-xs font-semibold">Report Dataset</Label>
+            <Label htmlFor="reportType" className="text-sm font-medium">Report type</Label>
             <Select name="reportType" value={reportType} onValueChange={setReportType} items={reportTypeLabels}>
-              <SelectTrigger id="reportType" className="w-full min-h-[44px] md:min-h-[38px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger id="reportType" className="w-full h-11 md:h-10"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {reportTypes.map((t) => (
                   <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
@@ -81,32 +63,30 @@ export function ReportGeneratorForm({ doctors }) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="format" className="text-xs font-semibold">Export Format</Label>
-            <Select name="format" defaultValue="pdf" items={{ pdf: "PDF Document", csv: "CSV Spreadsheet" }}>
-              <SelectTrigger id="format" className="w-full min-h-[44px] md:min-h-[38px]"><SelectValue /></SelectTrigger>
+            <Label htmlFor="format" className="text-sm font-medium">Format</Label>
+            <Select name="format" defaultValue="pdf" items={{ pdf: "PDF", csv: "CSV (spreadsheet)" }}>
+              <SelectTrigger id="format" className="w-full h-11 md:h-10"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="pdf">PDF Document</SelectItem>
-                <SelectItem value="csv">CSV Spreadsheet</SelectItem>
+                <SelectItem value="pdf">PDF</SelectItem>
+                <SelectItem value="csv">CSV (spreadsheet)</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {showDateFilter && (
             <>
-              <div className="space-y-1.5">
-                <Label htmlFor="from" className="text-xs font-semibold">From Date</Label>
-                <Input id="from" name="from" type="date" className="min-h-[44px] md:min-h-[38px] w-full" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="to" className="text-xs font-semibold">To Date</Label>
-                <Input id="to" name="to" type="date" className="min-h-[44px] md:min-h-[38px] w-full" />
-              </div>
+              <Field label="From date" htmlFor="from">
+                <DatePicker id="from" name="from" label="From date" value={from} onValueChange={setFrom} max={to || clinicDateKey()} placeholder="Any start" />
+              </Field>
+              <Field label="To date" htmlFor="to">
+                <DatePicker id="to" name="to" label="To date" value={to} onValueChange={setTo} min={from || undefined} max={clinicDateKey()} placeholder="Up to today" />
+              </Field>
             </>
           )}
 
           {showDoctorFilter && (
             <div className="space-y-1.5 col-span-1 sm:col-span-2">
-              <Label htmlFor="doctorId" className="text-xs font-semibold">Filter by Doctor (optional)</Label>
+              <Label htmlFor="doctorId" className="text-sm font-medium">Doctor (optional)</Label>
               <Combobox
                 id="doctorId"
                 name="doctorId"
@@ -117,14 +97,15 @@ export function ReportGeneratorForm({ doctors }) {
             </div>
           )}
 
-          <div className="col-span-1 sm:col-span-2 lg:col-span-1">
-            <Button type="submit" disabled={loading} className="w-full min-h-[44px] md:min-h-[38px] shadow-xs">
-              {loading ? "Generating..." : "Generate Report"}
-            </Button>
+          <div className="col-span-1 sm:col-span-2 lg:col-span-1 lg:pt-7">
+            <SubmitButton pendingText="Generating…" className="w-full h-11 md:h-10">
+              Generate report
+            </SubmitButton>
           </div>
-        </form>
-
-        {error && <p role="alert" className="text-sm font-medium text-destructive mt-3">{error}</p>}
+          <div className="col-span-full">
+            <FormStatus variant="dialog" />
+          </div>
+        </Form>
         {readyUrl && (
           <p role="status" className="text-sm mt-3">
             Report ready.{" "}
@@ -133,7 +114,6 @@ export function ReportGeneratorForm({ doctors }) {
             </a>
           </p>
         )}
-      </CardContent>
-    </Card>
+    </section>
   );
 }
